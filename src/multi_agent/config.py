@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8000
     debug: bool = False
+    allowed_origins: str = "*"  # 逗号分隔的允许来源，如 "http://localhost:3000,https://example.com"
 
     # Agent limits
     max_retries_per_task: int = 3

@@ -1,4 +1,13 @@
-"""Tests for the multi-agent system."""
+"""Tests for the multi-agent system.
+
+TODO: 测试覆盖率不足，需补充以下测试：
+- Worker _parse_output() JSON 解析和容错逻辑
+- GatewayRouter.route() 和 route_after_gateway() 路由决策
+- prompt_loader.load_prompt() fallback 行为
+- PgStore 行映射函数
+- 工作流条件边函数
+- PMAgent 分解/验收/失败处理响应解析
+"""
 
 import pytest
 

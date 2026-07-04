@@ -39,6 +39,7 @@
 │     → instant（即时任务）                             │
 │     → project（项目型任务）                           │
 │     → blocked（拦截恶意请求）                          │
+│     → scheduled（定时任务，MVP暂不支持）                │
 └───────┬─────────────────┬──────────────┬────────────┘
         │                 │              │
         ▼                 ▼              ▼
@@ -77,10 +78,10 @@
 | **身份提取** | `gateway/auth.py` | 租户/用户身份提取、请求上下文构建 |
 | **PM Agent** | `agents/pm_agent.py` | 任务拆解、验收评审、失败处理 |
 | **Worker Agent** | `agents/analyzer.py` 等 | 执行具体领域任务，输出结构化结果 |
-| **状态图编排** | `graph/workflow.py` | LangGraph 状态图，控制整体流转 |
-| **持久化层** | `store/pg_store.py` | PostgreSQL 异步 CRUD（asyncpg 连接池） |
-| **Prompt 管理** | `prompt_loader.py` + `defaults/prompts.py` | 运行时 Prompt 加载、版本管理、种子填充 |
-| **接口层** | `api/routes.py` | REST API 暴露给外部调用 |
+| **状态图编排** | `graph/workflow.py` + `graph/nodes.py` + `graph/conditions.py` + `graph/state.py` | LangGraph 状态图，控制整体流转 |
+| **持久化层** | `store/pg_store.py`（Facade）+ `store/project_store.py` + `store/task_store.py` + `store/trace_store.py` + `store/prompt_store.py` + `store/ddl.py` | PostgreSQL 异步 CRUD（asyncpg 连接池），按领域拆分子 Store |
+| **Prompt 管理** | `prompt_loader.py`（PromptLoader 类）+ `defaults/prompts.py` | 运行时 Prompt 加载（依赖注入）、版本管理、种子填充 |
+| **接口层** | `api/routes.py` + `api/schemas.py` | REST API 端点（含 Prompt 管理），Schema 定义独立文件 |
 | **C 端页面** | `index.html` | 用户对话、项目看板、Trace 日志 |
 | **管理控制台** | `admin.html` | Agent 管理、Prompt 编辑、模型配置、系统设置 |
 
@@ -93,11 +94,12 @@ multi-agent/
 ├── index.html                        # C端用户 SPA（对话/项目/Trace）
 ├── admin.html                        # 管理控制台 SPA（仪表盘/Agent/Prompt/模型等）
 ├── data/                             # 数据文件目录
+├── scripts/                          # 脚本目录
+│   └── demo.py                       # 演示脚本（从 src 移出，移除 sys.path hack）
 ├── src/multi_agent/                  # 主源码
 │   ├── config.py                     # 全局配置（pydantic-settings，从 .env 加载）
 │   ├── main.py                       # FastAPI 应用入口
-│   ├── demo.py                       # 演示脚本
-│   ├── prompt_loader.py              # Prompt 加载器（从 DB 加载，fallback 到默认值）
+│   ├── prompt_loader.py              # Prompt 加载器（PromptLoader 类封装 + 向后兼容 API）
 │   ├── models/                       # 数据模型层
 │   │   ├── __init__.py               # 统一导出所有模型
 │   │   ├── task.py                   # 任务模型 + 状态机
@@ -106,7 +108,7 @@ multi-agent/
 │   │   └── prompt.py                 # AgentPrompt 模型（版本化管理）
 │   ├── gateway/                      # 网关层
 │   │   ├── router.py                 # 意图分类 + 注入检测
-│   │   └── auth.py                   # 租户/用户身份提取
+│   │   └── auth.py                   # 租户/用户身份提取（TODO: 待集成）
 │   ├── agents/                       # Agent 层
 │   │   ├── __init__.py               # Worker 注册表（延迟初始化）
 │   │   ├── base_worker.py            # Worker 基类（统一执行接口 + Prompt 加载）
@@ -114,14 +116,23 @@ multi-agent/
 │   │   ├── coder.py                  # 编码 Worker
 │   │   ├── tester.py                 # 测试 Worker
 │   │   └── pm_agent.py               # PM Agent（拆解/验收/失败处理）
-│   ├── graph/                        # 编排层
-│   │   └── workflow.py               # LangGraph 状态图（核心编排逻辑）
-│   ├── store/                        # 持久化层
-│   │   └── pg_store.py               # PostgreSQL 异步 CRUD（asyncpg 连接池）
+│   ├── graph/                        # 编排层（拆分自原 workflow.py）
+│   │   ├── state.py                  # WorkflowState 状态定义
+│   │   ├── nodes.py                  # 所有工作流节点函数
+│   │   ├── conditions.py             # 条件路由函数
+│   │   └── workflow.py               # 图构建与运行入口（精简）
+│   ├── store/                        # 持久化层（拆分自原 pg_store.py）
+│   │   ├── pg_store.py               # Facade 门面类，聚合领域子 Store
+│   │   ├── project_store.py          # Project CRUD
+│   │   ├── task_store.py             # Task CRUD
+│   │   ├── trace_store.py            # Trace CRUD
+│   │   ├── prompt_store.py           # Prompt CRUD
+│   │   └── ddl.py                    # DDL SQL 常量
 │   ├── defaults/                     # 默认数据
 │   │   └── prompts.py                # 7 个默认 Prompt 模板 + 种子数据
 │   └── api/                          # 接口层
-│       └── routes.py                 # REST API 端点（含 Prompt 管理）
+│       ├── routes.py                 # REST API 端点（含 Prompt 管理）
+│       └── schemas.py                # Pydantic 请求/响应模型
 └── tests/                            # 测试目录
     └── test_core.py                  # 核心单元测试
 ```
@@ -184,6 +195,7 @@ cp .env.example .env
 | 最大重试 | `MAX_RETRIES_PER_TASK` | `3` | 单个任务最大重试次数 |
 | 最大任务数 | `MAX_PROJECT_TASKS` | `20` | 单个项目最大子任务数 |
 | Token 上限 | `MAX_TOKENS_PER_REQUEST` | `4096` | 单请求最大 Token 数 |
+| CORS 来源 | `ALLOWED_ORIGINS` | `*` | 逗号分隔的允许来源，如 `http://localhost:3000,https://example.com` |
 
 ### 启动服务
 
@@ -192,7 +204,7 @@ cp .env.example .env
 python -m multi_agent.main
 
 # 方式二：通过 demo 脚本启动
-python -m multi_agent.demo server
+python scripts/demo.py server
 
 # 方式三：使用 uvicorn（推荐生产环境）
 uvicorn multi_agent.main:app --host 0.0.0.0 --port 8000
@@ -210,13 +222,13 @@ uvicorn multi_agent.main:app --host 0.0.0.0 --port 8000
 
 ```bash
 # 即时任务演示
-python -m multi_agent.demo instant
+python scripts/demo.py instant
 
 # 项目型任务演示
-python -m multi_agent.demo project
+python scripts/demo.py project
 
 # 运行全部演示
-python -m multi_agent.demo
+python scripts/demo.py
 ```
 
 ## API 接口
@@ -379,7 +391,8 @@ curl -X PUT http://localhost:8000/api/v1/prompts/pm_decompose \
      └── 调用 gpt-4o-mini 做意图分类
            ├── instant → instant_handler → END
            ├── project → project_init → ...
-           └── blocked → blocked_handler → END
+           ├── blocked → blocked_handler → END
+           └── scheduled → scheduled_handler → END（MVP 暂不支持）
 
    [project_init]（仅项目型任务）
      ├── 创建 Project 记录并写入 PostgreSQL
@@ -387,19 +400,22 @@ curl -X PUT http://localhost:8000/api/v1/prompts/pm_decompose \
 
    [worker_execute]（循环执行每个任务）
      ├── TODO → DOING → 调用 Worker → REVIEW / FAILED
-     └── 收集前序任务产物作为上下文传递
+     ├── 收集前序任务产物作为上下文传递
+     └── Trace 日志持久化到数据库
 
    [pm_review]
      ├── 通过: REVIEW → DONE → 下一个任务
-     └── 不通过: REVIEW → TODO + retry → 重试
+     └── 不通过: REVIEW → TODO → 重试（retry_count 由 handle_failure 统一管理）
 
    [handle_failure]
+     ├── 状态前置检查，避免非法转换导致 ValueError
      ├── retry → 重新执行
      ├── escalate → HUMAN_PENDING
-     └── abort → FAILED
+     ├── abort → FAILED
+     └── Trace 日志持久化到数据库
 
    [project_finalize]
-     └── 汇总结果 → END
+     └── 汇总结果（含 HUMAN_PENDING 任务时项目状态为 PAUSED）→ END
 ```
 
 ### 任务状态机
@@ -436,7 +452,7 @@ TODO ──────► DOING ──────► REVIEW ──────
 
 所有 Agent 的系统 Prompt 不再硬编码在代码中，而是存储在 PostgreSQL `agent_prompts` 表中：
 
-- **运行时加载**：Agent 执行时通过 `prompt_loader.py` 从数据库加载最新 Prompt，加载失败时 fallback 到 `defaults/prompts.py` 中的硬编码默认值
+- **运行时加载**：Agent 执行时通过 `PromptLoader` 类（依赖注入 `PgStore`）从数据库加载最新 Prompt，加载失败时 fallback 到 `defaults/prompts.py` 中的硬编码默认值；同时保留向后兼容的模块级函数 API
 - **版本管理**：每次更新自动创建新版本（`version` 自增），旧版本标记为非活跃（`is_active = false`），保留完整历史
 - **种子填充**：系统启动时自动插入 7 个默认 Prompt（幂等操作），包括 `pm_decompose`、`pm_review`、`pm_failure`、`analyzer`、`coder`、`tester`、`gateway_routing`
 - **在线编辑**：通过管理控制台（`/admin`）或 API（`PUT /api/v1/prompts/{prompt_id}`）实时修改 Prompt，无需重启服务

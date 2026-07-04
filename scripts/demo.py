@@ -6,19 +6,15 @@ Usage:
     # Or copy .env.example to .env and fill in
 
     # Run the demo:
-    python -m multi_agent.demo
+    python scripts/demo.py
 
     # Or run the server:
-    python -m multi_agent.main
+    python scripts/demo.py server
 """
 
 import asyncio
 import logging
-import os
 import sys
-
-# Add src to path for direct execution
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 logging.basicConfig(
     level=logging.INFO,
@@ -119,9 +115,9 @@ async def main():
     else:
         print("Multi-Agent System Demo")
         print("Usage:")
-        print("  python -m multi_agent.demo instant  - Run instant task demo")
-        print("  python -m multi_agent.demo project  - Run project task demo")
-        print("  python -m multi_agent.demo server   - Start the API server")
+        print("  python scripts/demo.py instant  - Run instant task demo")
+        print("  python scripts/demo.py project  - Run project task demo")
+        print("  python scripts/demo.py server   - Start the API server")
         print()
         await demo_instant_task()
         await demo_project_task()

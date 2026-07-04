@@ -1,4 +1,8 @@
-"""Basic authentication and tenant isolation."""
+"""Basic authentication and tenant isolation.
+
+TODO: 当前未接入路由依赖注入。后续需将 extract_context 作为 FastAPI
+Depends() 集成到 API 路由中，实现真正的认证与租户隔离。
+"""
 
 from typing import Optional
 

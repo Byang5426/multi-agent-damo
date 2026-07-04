@@ -26,9 +26,8 @@ def get_worker(name: str) -> BaseWorker:
     return _WORKER_INSTANCES[name]
 
 
-@property
-def WORKER_REGISTRY() -> dict[str, type[BaseWorker]]:  # type: ignore[misc]
-    return _WORKER_CLASSES
+# Worker registry: name -> class (read-only reference to _WORKER_CLASSES)
+WORKER_REGISTRY: dict[str, type[BaseWorker]] = _WORKER_CLASSES
 
 
 __all__ = [
@@ -38,4 +37,5 @@ __all__ = [
     "CoderWorker",
     "TesterWorker",
     "get_worker",
+    "WORKER_REGISTRY",
 ]

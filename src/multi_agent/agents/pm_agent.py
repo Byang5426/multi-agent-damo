@@ -53,10 +53,6 @@ class FailureDecision(BaseModel):
     reason: str
 
 
-# ── System Prompts (fallback defaults, loaded from DB at runtime) ──
-# Actual prompt content is in multi_agent.defaults.prompts
-
-
 class PMAgent:
     """Project Manager agent for task decomposition, review, and failure handling."""
 
