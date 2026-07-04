@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>多Agent系统 · 管理控制台</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg-0:#f4f2ed;--bg-1:#ffffff;--bg-2:#f0ede7;--bg-3:#e8e4dc;--bg-4:#dcd7ce;
+  --amber:#c97d0a;--amber-dim:#a86808;--amber-glow:rgba(201,125,10,.1);
+  --green:#1a8f55;--green-dim:rgba(26,143,85,.1);
+  --red:#c82828;--red-dim:rgba(200,40,40,.08);
+  --blue:#2666c8;--blue-dim:rgba(38,102,200,.08);
+  --text-0:#1c1a16;--text-1:#4d483f;--text-2:#8e887e;--text-3:#c8c3b8;
+  --border:#e2ded6;--border-light:#d4cfc5;--radius:6px;
+  --font-mono:'JetBrains Mono',monospace;--font-sans:'Noto Sans SC',sans-serif;--font-display:'Space Grotesk',sans-serif;
+}
+html{font-size:14px;scroll-behavior:smooth}
+body{font-family:var(--font-mono);background:var(--bg-0);color:var(--text-0);min-height:100vh}
+.app{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
+.sidebar{background:var(--bg-1);border-right:1px solid var(--border);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto}
+.sidebar-header{padding:20px 18px;border-bottom:1px solid var(--border)}
+.logo{display:flex;align-items:center;gap:10px}
+.logo-icon{width:30px;height:30px;border:2px solid var(--amber);border-radius:6px;display:grid;place-items:center}
+.logo-icon::after{content:'';width:7px;height:7px;background:var(--amber);border-radius:50%;box-shadow:0 0 8px var(--amber-glow)}
+.logo-text{font-family:var(--font-display);font-size:14px;font-weight:600;color:var(--text-0)}
+.logo-sub{font-size:9px;color:var(--text-2);letter-spacing:1.5px;text-transform:uppercase}
+.nav{padding:12px 10px;flex:1}
+.nav-section{margin-bottom:18px}
+.nav-label{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--text-2);padding:0 8px;margin-bottom:6px}
+.nav-item{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:var(--radius);cursor:pointer;transition:all .15s;color:var(--text-1);font-size:12px;position:relative;text-decoration:none}
+.nav-item:hover{background:var(--bg-3);color:var(--text-0)}
+.nav-item.active{background:var(--amber-glow);color:var(--amber);font-weight:500}
+.nav-item.active::before{content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);width:3px;height:18px;background:var(--amber);border-radius:0 3px 3px 0}
+.nav-icon{width:16px;height:16px;opacity:.55;flex-shrink:0}
+.nav-item.active .nav-icon{opacity:1}
+.nav-badge{margin-left:auto;background:var(--red-dim);color:var(--red);font-size:9px;padding:2px 5px;border-radius:8px;font-weight:600}
+.sidebar-footer{padding:14px 18px;border-top:1px solid var(--border)}
+.status-dot{width:6px;height:6px;border-radius:50%;display:inline-block;margin-right:6px}
+.status-dot.online{background:var(--green);box-shadow:0 0 6px var(--green-dim)}
+.status-text{font-size:10px;color:var(--text-2)}
+.main{overflow-y:auto}
+.main-header{padding:16px 28px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;backdrop-filter:blur(12px);background:rgba(255,255,255,.92)}
+.page-title{font-family:var(--font-display);font-size:17px;font-weight:600;letter-spacing:-.4px}
+.page-title span{color:var(--amber)}
+.btn{font-family:var(--font-mono);font-size:10.5px;padding:6px 12px;border-radius:var(--radius);border:1px solid var(--border);background:transparent;color:var(--text-1);cursor:pointer;transition:all .15s;text-decoration:none}
+.btn:hover{border-color:var(--border-light);color:var(--text-0)}
+.btn-primary{background:var(--amber);color:#fff;border-color:var(--amber);font-weight:600}
+.btn-primary:hover{background:var(--amber-dim)}
+.btn-success{background:var(--green);color:#fff;border-color:var(--green)}
+.content{padding:24px 28px 50px}
+.page{display:none}.page.active{display:block}
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+.stat-card{background:var(--bg-1);border:1px solid var(--border);border-radius:8px;padding:16px;position:relative;overflow:hidden}
+.stat-card::after{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.stat-card.amber::after{background:linear-gradient(90deg,var(--amber),transparent)}
+.stat-card.green::after{background:linear-gradient(90deg,var(--green),transparent)}
+.stat-card.blue::after{background:linear-gradient(90deg,var(--blue),transparent)}
+.stat-card.red::after{background:linear-gradient(90deg,var(--red),transparent)}
+.stat-label{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-2);margin-bottom:8px}
+.stat-value{font-family:var(--font-display);font-size:24px;font-weight:700;letter-spacing:-.5px}
+.stat-value.amber{color:var(--amber)}.stat-value.green{color:var(--green)}.stat-value.blue{color:var(--blue)}.stat-value.red{color:var(--red)}
+.stat-change{font-size:10px;color:var(--text-2);margin-top:6px}
+.panel{background:var(--bg-1);border:1px solid var(--border);border-radius:8px;margin-bottom:20px;overflow:hidden}
+.panel-header{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.panel-title{font-size:12px;font-weight:600;display:flex;align-items:center;gap:7px}
+.panel-title .dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.panel-body{padding:18px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.form-group{display:flex;flex-direction:column;gap:5px}
+.form-group.full{grid-column:1/-1}
+.form-label{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-2)}
+.form-input{font-family:var(--font-mono);font-size:11.5px;padding:9px 12px;background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text-0);outline:none;transition:all .15s;width:100%}
+.form-input:focus{border-color:var(--amber);box-shadow:0 0 0 2px var(--amber-glow)}
+.form-select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%238e887e' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:30px}
+.form-hint{font-size:9px;color:var(--text-2);margin-top:1px}
+.form-textarea{resize:vertical;min-height:60px;font-family:var(--font-mono);font-size:11px;line-height:1.6}
+.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)}
+.toggle-row:last-child{border:none}
+.toggle-info{display:flex;flex-direction:column;gap:1px}
+.toggle-title{font-size:11.5px;color:var(--text-0)}.toggle-desc{font-size:10px;color:var(--text-2)}
+.toggle{width:36px;height:20px;background:var(--bg-4);border-radius:10px;position:relative;cursor:pointer;transition:all .2s;flex-shrink:0;border:1px solid var(--border)}
+.toggle::after{content:'';width:14px;height:14px;background:var(--text-2);border-radius:50%;position:absolute;top:2px;left:2px;transition:all .2s}
+.toggle.on{background:var(--amber-glow);border-color:var(--amber-dim)}
+.toggle.on::after{left:18px;background:var(--amber)}
+.agent-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.agent-card{background:var(--bg-2);border:1px solid var(--border);border-radius:8px;padding:16px;transition:all .2s}
+.agent-card:hover{border-color:var(--border-light);transform:translateY(-1px)}
+.agent-icon{width:36px;height:36px;border-radius:7px;display:grid;place-items:center;font-size:16px;margin-bottom:10px}
+.agent-icon.analyzer{background:var(--blue-dim);color:var(--blue)}
+.agent-icon.coder{background:var(--amber-glow);color:var(--amber)}
+.agent-icon.tester{background:var(--green-dim);color:var(--green)}
+.agent-icon.pm{background:rgba(130,80,200,.1);color:#7a4cc0}
+.agent-name{font-size:12px;font-weight:600;margin-bottom:3px}
+.agent-role{font-size:10px;color:var(--text-2);margin-bottom:8px}
+.agent-model{background:var(--bg-3);padding:2px 7px;border-radius:3px;font-size:9px;color:var(--text-1)}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.detail-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:11px}
+.detail-label{color:var(--text-2)}.detail-value{color:var(--text-0);font-weight:500}
+.tabs{display:flex;gap:2px;background:var(--bg-2);border-radius:var(--radius);padding:3px;margin-bottom:16px;width:fit-content}
+.tab{padding:6px 14px;border-radius:4px;font-size:10.5px;color:var(--text-2);cursor:pointer;transition:all .15s}
+.tab:hover{color:var(--text-1)}
+.tab.active{background:var(--bg-1);color:var(--text-0);font-weight:500}
+.prompt-editor{background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius);padding:14px;font-size:10.5px;line-height:1.7;color:var(--text-1);min-height:100px;max-height:400px;overflow-y:auto;white-space:pre-wrap;font-family:var(--font-mono)}
+.kanban{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.kanban-col{background:var(--bg-2);border-radius:8px;padding:10px;min-height:180px}
+.kanban-col-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+.kanban-col-title{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-2);display:flex;align-items:center;gap:5px}
+.kanban-count{background:var(--bg-4);padding:1px 5px;border-radius:6px;font-size:9px}
+.task-card{background:var(--bg-3);border:1px solid var(--border);border-radius:5px;padding:10px;margin-bottom:6px;font-size:10.5px}
+.task-id{font-size:8px;color:var(--text-2);margin-bottom:3px}
+.task-title{font-weight:500;margin-bottom:6px;line-height:1.3}
+.task-tags{display:flex;gap:3px;flex-wrap:wrap}
+.tag{font-size:8px;padding:1px 5px;border-radius:2px}
+.tag-worker{background:var(--blue-dim);color:var(--blue)}
+.tag-retry{background:var(--amber-glow);color:var(--amber)}
+.tag-human{background:var(--red-dim);color:var(--red)}
+.trace-table{width:100%;border-collapse:collapse}
+.trace-table th{font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-2);text-align:left;padding:8px 10px;border-bottom:1px solid var(--border)}
+.trace-table td{font-size:11px;padding:8px 10px;border-bottom:1px solid var(--border);color:var(--text-1)}
+.trace-table tr:hover td{background:var(--bg-2)}
+.trace-agent{display:flex;align-items:center;gap:6px}
+.trace-agent-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.trace-status{font-size:9px;padding:2px 6px;border-radius:3px;font-weight:500}
+.trace-status.ok{background:var(--green-dim);color:var(--green)}
+.trace-status.err{background:var(--red-dim);color:var(--red)}
+.empty-state{text-align:center;padding:30px;color:var(--text-2);font-size:11px}
+.loading{display:inline-block;width:12px;height:12px;border:2px solid var(--border);border-top-color:var(--amber);border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+.animate-in{animation:fadeUp .4s ease both}
+::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--bg-4);border-radius:3px}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">
+        <div class="logo-icon"></div>
+        <div>
+          <div class="logo-text">管理控制台</div>
+          <div class="logo-sub">Multi-Agent Admin</div>
+        </div>
+      </div>
+    </div>
+    <nav class="nav">
+      <div class="nav-section">
+        <div class="nav-label">概览</div>
+        <a class="nav-item" href="#/dashboard" data-page="dashboard">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          仪表盘
+        </a>
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">配置管理</div>
+        <a class="nav-item" href="#/agents" data-page="agents">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>
+          Agent 管理
+        </a>
+        <a class="nav-item" href="#/llm" data-page="llm">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+          模型配置
+        </a>
+        <a class="nav-item" href="#/gateway" data-page="gateway">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+          Gateway 路由
+        </a>
+        <a class="nav-item" href="#/prompts" data-page="prompts">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>
+          Prompt 管理
+        </a>
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">运行监控</div>
+        <a class="nav-item" href="#/projects" data-page="projects">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+          项目 & 任务
+        </a>
+        <a class="nav-item" href="#/trace" data-page="trace">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Trace 日志
+        </a>
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">系统</div>
+        <a class="nav-item" href="#/settings" data-page="settings">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+          系统设置
+        </a>
+        <a class="nav-item" href="/" style="color:var(--text-2);font-size:10.5px;margin-top:4px">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M15 12H3"/></svg>
+          返回用户端
+        </a>
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <span class="status-dot online"></span>
+      <span class="status-text">系统运行正常 · PostgreSQL</span>
+    </div>
+  </aside>
+  <main class="main">
+    <header class="main-header">
+      <div class="page-title" id="pageTitle"><span>▎</span>仪表盘</div>
+      <div style="display:flex;gap:6px">
+        <button class="btn" onclick="location.reload()">刷新</button>
+      </div>
+    </header>
+    <div class="content">
+      <!-- Dashboard -->
+      <div class="page" id="page-dashboard">
+        <div class="stats-grid" id="dashStats">
+          <div class="stat-card amber"><div class="stat-label">运行中项目</div><div class="stat-value amber" id="sProj">-</div><div class="stat-change" id="sProjSub">加载中...</div></div>
+          <div class="stat-card green"><div class="stat-label">已完成任务</div><div class="stat-value green" id="sDone">-</div><div class="stat-change" id="sDoneSub">加载中...</div></div>
+          <div class="stat-card blue"><div class="stat-label">总任务数</div><div class="stat-value blue" id="sTotal">-</div><div class="stat-change" id="sTotalSub">加载中...</div></div>
+          <div class="stat-card red"><div class="stat-label">待人工处理</div><div class="stat-value red" id="sHuman">-</div><div class="stat-change" id="sHumanSub">加载中...</div></div>
+        </div>
+        <div class="two-col">
+          <div class="panel"><div class="panel-header"><div class="panel-title"><span class="dot" style="background:var(--green)"></span>Agent 状态</div></div>
+            <div class="panel-body" id="agentStatusList"></div>
+          </div>
+          <div class="panel"><div class="panel-header"><div class="panel-title"><span class="dot" style="background:var(--amber)"></span>系统信息</div></div>
+            <div class="panel-body">
+              <div class="detail-row"><span class="detail-label">数据库</span><span class="detail-value" style="color:var(--green)">PostgreSQL · 已连接</span></div>
+              <div class="detail-row"><span class="detail-label">Prompt 注入防护</span><span class="detail-value" style="color:var(--green)">已启用</span></div>
+              <div class="detail-row"><span class="detail-label">租户隔离</span><span class="detail-value" style="color:var(--green)">已启用</span></div>
+              <div class="detail-row"><span class="detail-label">请求追踪</span><span class="detail-value" style="color:var(--green)">已启用</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Agents -->
+      <div class="page" id="page-agents">
+        <div class="agent-grid animate-in">
+          <div class="agent-card"><div class="agent-icon pm">PM</div><div class="agent-name">PM Agent</div><div class="agent-role">任务拆解 · 验收评审 · 失败处理</div><div><span class="agent-model">gpt-4o</span></div></div>
+          <div class="agent-card"><div class="agent-icon analyzer">A</div><div class="agent-name">Analyzer</div><div class="agent-role">需求分析 · 文档研究 · 方案设计</div><div><span class="agent-model">gpt-4o</span></div></div>
+          <div class="agent-card"><div class="agent-icon coder">C</div><div class="agent-name">Coder</div><div class="agent-role">代码生成 · 功能实现 · 脚本开发</div><div><span class="agent-model">gpt-4o</span></div></div>
+          <div class="agent-card"><div class="agent-icon tester">T</div><div class="agent-name">Tester</div><div class="agent-role">测试计划 · 代码审查 · 质量验证</div><div><span class="agent-model">gpt-4o</span></div></div>
+        </div>
+        <div class="panel" style="margin-top:20px"><div class="panel-header"><div class="panel-title"><span class="dot" style="background:var(--amber)"></span>Gateway 路由</div></div>
+          <div class="panel-body">
+            <div class="detail-row"><span class="detail-label">路由模型</span><span class="detail-value">gpt-4o-mini</span></div>
+            <div class="detail-row"><span class="detail-label">Temperature</span><span class="detail-value">0</span></div>
+            <div class="detail-row"><span class="detail-label">注入检测规则</span><span class="detail-value" style="color:var(--green)">已启用</span></div>
+          </div>
+        </div>
+      </div>
+      <!-- LLM -->
+      <div class="page" id="page-llm">
+        <div class="panel"><div class="panel-header"><div class="panel-title"><span class="dot" style="background:var(--blue)"></span>LLM API 配置</div><button class="btn">测试连接</button></div>
+          <div class="panel-body"><div class="form-grid">
+            <div class="form-group full"><label class="form-label">API Key</label><input class="form-input" type="password" value="sk-xxxxxxxx" placeholder="输入 API Key"><div class="form-hint">支持 OpenAI 及兼容接口</div></div>
+            <div class="form-group"><label class="form-label">API Base URL</label><input class="form-input" placeholder="https://api.openai.com/v1"></div>
+            <div class="form-group"><label class="form-label">主力模型</label><select class="form-input form-select"><option>gpt-4o</option><option>gpt-4-turbo</option><option>deepseek-chat</option></select></div>
+            <div class="form-group"><label class="form-label">路由模型</label><select class="form-input form-select"><option>gpt-4o-mini</option><option>gpt-3.5-turbo</option></select></div>
+            <div class="form-group"><label class="form-label">Token 上限</label><input class="form-input" type="number" value="4096"></div>
+          </div></div>
+        </div>
+      </div>
+      <!-- Gateway -->
+      <div class="page" id="page-gateway">
+        <div class="panel"><div class="panel-header"><div class="panel-title"><span class="dot" style="background:var(--amber)"></span>路由规则</div></div>
+          <div class="panel-body"><div class="form-grid">
+            <div class="form-group"><label class="form-label">默认策略</label><select class="form-input form-select"><option>不确定时偏向 instant</option><option>不确定时偏向 project</option></select></div>
+            <div class="form-group"><label class="form-label">Temperature</label><input class="form-input" type="number" value="0" step="0.1"></div>
+          </div></div>
+        </div>
+        <div class="panel"><div class="panel-header"><div class="panel-title"><span class="dot" style="background:var(--red)"></span>Prompt 注入防护</div></div>
+          <div class="panel-body" style="font-size:10.5px">
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--bg-2);border-radius:5px"><span style="color:var(--red);font-size:9px;flex-shrink:0">BLOCK</span><code style="font-size:10px;flex:1">忘记你的(所有|全部|之前).*(规则|指令|设定)</code></div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--bg-2);border-radius:5px"><span style="color:var(--red);font-size:9px;flex-shrink:0">BLOCK</span><code style="font-size:10px;flex:1">忽略(以上|之前|所有).*(规则|指令|设定|限制)</code></div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--bg-2);border-radius:5px"><span style="color:var(--red);font-size:9px;flex-shrink:0">BLOCK</span><code style="font-size:10px;flex:1">ignore\s+(all\s+)?(previous|above)\s+(instructions|rules)</code></div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--bg-2);border-radius:5px"><span style="color:var(--red);font-size:9px;flex-shrink:0">BLOCK</span><code style="font-size:10px;flex:1">pretend\s+(you\s+are|to\s+be)\s+</code></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Prompts -->
+      <div class="page" id="page-prompts">
+        <div class="tabs" id="promptTabs">
+          <div class="tab active" data-key="pm_decompose">PM 拆解</div>
+          <div class="tab" data-key="pm_review">PM 验收</div>
+          <div class="tab" data-key="pm_failure">PM 失败处理</div>
+          <div class="tab" data-key="analyzer">Analyzer</div>
+          <div class="tab" data-key="coder">Coder</div>
+          <div class="tab" data-key="tester">Tester</div>
+          <div class="tab" data-key="gateway_routing">Gateway</div>
+        </div>
+        <div class="panel"><div class="panel-header"><div class="panel-title"><span class="dot" style="background:var(--amber)"></span><span id="promptTitle">PM 拆解</span></div>
+          <div style="display:flex;gap:6px"><button class="btn" onclick="resetPrompt()">恢复默认</button><button class="btn btn-primary" onclick="savePrompt()">保存</button></div></div>
+          <div class="panel-body"><textarea class="form-input form-textarea" id="promptEditor" style="min-height:200px;font-size:11px;line-height:1.7" placeholder="加载 Prompt 内容..."></textarea></div>
+        </div>
+      </div>
+      <!-- Projects -->
+      <div class="page" id="page-projects">
+        <div class="panel"><div class="panel-header"><div class="panel-title"><span class="dot" style="background:var(--amber)"></span>查询项目</div></div>
+          <div class="panel-body"><div style="display:flex;gap:6px"><input class="form-input" id="adminProjInput" placeholder="输入项目ID" style="flex:1"><button class="btn btn-primary" onclick="adminQueryProject()">查询</button></div></div>
+        </div>
+        <div id="adminKanban"><div class="empty-state">输入项目 ID 查询</div></div>
+      </div>
+      <!-- Trace -->
+      <div class="page" id="page-trace">
+        <div class="panel"><div class="panel-header"><div class="panel-title"><span class="dot" style="background:var(--blue)"></span>调用链路追踪</div></div>
+          <div class="panel-body"><div style="display:flex;gap:6px"><input class="form-input" id="adminTraceInput" placeholder="输入项目ID" style="flex:1"><button class="btn btn-primary" onclick="adminQueryTrace()">查询</button></div></div>
+        </div>
+        <div class="panel"><div class="panel-body" id="adminTraceContainer" style="padding:0"><div class="empty-state">输入项目 ID 查询</div></div></div>
+      </div>
+      <!-- Settings -->
+      <div class="page" id="page-settings">
+        <div class="two-col">
+          <div class="panel"><div class="panel-header"><div class="panel-title"><span class="dot" style="background:var(--green)"></span>数据库</div></div>
+            <div class="panel-body">
+              <div class="detail-row"><span class="detail-label">类型</span><span class="detail-value">PostgreSQL</span></div>
+              <div class="detail-row"><span class="detail-label">主机</span><span class="detail-value">localhost:5432</span></div>
+              <div class="detail-row"><span class="detail-label">数据库</span><span class="detail-value">multi_agent</span></div>
+              <div class="detail-row"><span class="detail-label">连接池</span><span class="detail-value">2-10</span></div>
+            </div>
+          </div>
+          <div class="panel"><div class="panel-header"><div class="panel-title"><span class="dot" style="background:var(--blue)"></span>服务</div></div>
+            <div class="panel-body">
+              <div class="detail-row"><span class="detail-label">地址</span><span class="detail-value">0.0.0.0:8000</span></div>
+              <div class="detail-row"><span class="detail-label">最大重试</span><span class="detail-value">3</span></div>
+              <div class="detail-row"><span class="detail-label">最大任务数</span><span class="detail-value">20</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="panel"><div class="panel-header"><div class="panel-title"><span class="dot" style="background:var(--red)"></span>安全</div></div>
+          <div class="panel-body">
+            <div class="toggle-row"><div class="toggle-info"><div class="toggle-title">Prompt 注入检测</div><div class="toggle-desc">Gateway 入口正则匹配</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+            <div class="toggle-row"><div class="toggle-info"><div class="toggle-title">Agent 间结构化消息</div><div class="toggle-desc">Worker 只接收结构化 payload</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+            <div class="toggle-row"><div class="toggle-info"><div class="toggle-title">租户隔离</div><div class="toggle-desc">强制 tenant_id 过滤</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+            <div class="toggle-row"><div class="toggle-info"><div class="toggle-title">请求追踪</div><div class="toggle-desc">自动注入 request_id</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<script>
+const API = window.location.origin;
+const pageTitles = { dashboard:'仪表盘', agents:'Agent 管理', llm:'模型配置', gateway:'Gateway 路由', prompts:'Prompt 管理', projects:'项目 & 任务', trace:'Trace 日志', settings:'系统设置' };
+let currentPromptKey = 'pm_decompose';
+
+// ── API ──
+async function api(path, opts={}) {
+  const c = { headers:{'Content-Type':'application/json'}, ...opts };
+  if (c.body && typeof c.body==='object') c.body = JSON.stringify(c.body);
+  const r = await fetch(API+'/api/v1'+path, c);
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
+// ── Hash Router ──
+function navigate() {
+  const hash = location.hash || '#/dashboard';
+  const id = hash.replace('#/','') || 'dashboard';
+  if (!pageTitles[id]) { location.hash='#/dashboard'; return; }
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item[data-page]').forEach(n=>n.classList.remove('active'));
+  const page = document.getElementById('page-'+id);
+  if (page) page.classList.add('active');
+  const nav = document.querySelector(`.nav-item[data-page="${id}"]`);
+  if (nav) nav.classList.add('active');
+  document.getElementById('pageTitle').innerHTML = '<span>▎</span>' + pageTitles[id];
+  if (id==='dashboard') loadDashboard();
+  if (id==='prompts') loadPrompts();
+}
+window.addEventListener('hashchange', navigate);
+
+// ── Dashboard ──
+async function loadDashboard() {
+  const agents = ['Gateway Router','PM Agent','Analyzer Worker','Coder Worker','Tester Worker'];
+  const models = ['gpt-4o-mini','gpt-4o','gpt-4o','gpt-4o','gpt-4o'];
+  document.getElementById('agentStatusList').innerHTML = agents.map((a,i)=>
+    `<div class="detail-row"><span class="detail-label">${a}</span><span class="detail-value" style="color:var(--green)">${models[i]} · 在线</span></div>`
+  ).join('');
+}
+
+// ── Prompts ──
+async function loadPrompts() {
+  document.querySelectorAll('#promptTabs .tab').forEach(t => {
+    t.onclick = async () => {
+      document.querySelectorAll('#promptTabs .tab').forEach(x=>x.classList.remove('active'));
+      t.classList.add('active');
+      currentPromptKey = t.dataset.key;
+      document.getElementById('promptTitle').textContent = t.textContent;
+      try {
+        const data = await api('/prompts/' + currentPromptKey);
+        document.getElementById('promptEditor').value = data.content;
+      } catch { document.getElementById('promptEditor').value = '// 加载失败'; }
+    };
+  });
+  document.querySelector('#promptTabs .tab.active').click();
+}
+
+async function savePrompt() {
+  const content = document.getElementById('promptEditor').value;
+  try {
+    await api('/prompts/' + currentPromptKey, { method:'PUT', body:{ content, description: currentPromptKey } });
+    alert('保存成功');
+  } catch (e) { alert('保存失败: ' + e.message); }
+}
+
+async function resetPrompt() {
+  if (!confirm('确定恢复默认？')) return;
+  try {
+    const data = await api('/prompts/' + currentPromptKey);
+    document.getElementById('promptEditor').value = data.content;
+  } catch {}
+}
+
+// ── Projects ──
+async function adminQueryProject() {
+  const pid = document.getElementById('adminProjInput').value.trim();
+  if (!pid) return;
+  const c = document.getElementById('adminKanban');
+  c.innerHTML = '<div class="empty-state"><span class="loading"></span> 加载中...</div>';
+  try {
+    const data = await api('/projects/' + encodeURIComponent(pid));
+    const cols = { TODO:[], DOING:[], REVIEW:[], DONE:[], HUMAN_PENDING:[] };
+    (data.tasks||[]).forEach(t=>{ if(cols[t.status]) cols[t.status].push(t); });
+    const colors = { TODO:'var(--text-2)', DOING:'var(--blue)', REVIEW:'var(--amber)', DONE:'var(--green)', HUMAN_PENDING:'var(--red)' };
+    let h = '<div class="kanban">';
+    for (const [s,tasks] of Object.entries(cols)) {
+      h += `<div class="kanban-col"><div class="kanban-col-header"><div class="kanban-col-title"><span style="color:${colors[s]}">●</span> ${s}</div><span class="kanban-count">${tasks.length}</span></div>`;
+      tasks.forEach(t=>{
+        const tags=[];
+        if(t.assigned_worker) tags.push(`<span class="tag tag-worker">${t.assigned_worker}</span>`);
+        if(t.retry_count>0) tags.push(`<span class="tag tag-retry">重试${t.retry_count}</span>`);
+        if(t.status==='HUMAN_PENDING') tags.push('<span class="tag tag-human">人工</span>');
+        h+=`<div class="task-card"><div class="task-id">${t.task_id}</div><div class="task-title">${esc(t.title)}</div><div class="task-tags">${tags.join('')}</div></div>`;
+      });
+      h+='</div>';
+    }
+    c.innerHTML = h+'</div>';
+  } catch(e) { c.innerHTML='<div class="empty-state">查询失败</div>'; }
+}
+
+// ── Trace ──
+async function adminQueryTrace() {
+  const pid = document.getElementById('adminTraceInput').value.trim();
+  if (!pid) return;
+  const c = document.getElementById('adminTraceContainer');
+  c.innerHTML = '<div class="empty-state"><span class="loading"></span> 加载中...</div>';
+  try {
+    const data = await api('/projects/'+encodeURIComponent(pid)+'/trace');
+    if (!data.traces||!data.traces.length) { c.innerHTML='<div class="empty-state">暂无记录</div>'; return; }
+    const ac = { gateway:'var(--amber)', pm:'#7a4cc0', analyzer:'var(--blue)', coder:'var(--amber)', tester:'var(--green)' };
+    let h='<table class="trace-table"><thead><tr><th>Agent</th><th>任务</th><th>耗时</th><th>Tokens</th><th>状态</th></tr></thead><tbody>';
+    data.traces.forEach(t=>{
+      const lat=t.latency_ms?(t.latency_ms>1000?(t.latency_ms/1000).toFixed(1)+'s':t.latency_ms+'ms'):'-';
+      const tok=`${t.prompt_tokens||0}/${t.completion_tokens||0}`;
+      const st=t.failure_reason?'<span class="trace-status err">ERR</span>':'<span class="trace-status ok">OK</span>';
+      h+=`<tr><td><div class="trace-agent"><span class="trace-agent-dot" style="background:${ac[t.agent_name]||'var(--text-2)'}"></span>${t.agent_name}</div></td><td>${t.task_id||'-'}</td><td>${lat}</td><td style="color:var(--text-2)">${tok}</td><td>${st}</td></tr>`;
+    });
+    c.innerHTML=h+'</tbody></table>';
+  } catch(e) { c.innerHTML='<div class="empty-state">查询失败</div>'; }
+}
+
+function esc(s){if(!s)return'';const d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+
+// ── Init ──
+navigate();
+</script>
+</body>
+</html>

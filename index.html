@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>多Agent系统</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg-0:#f4f2ed;--bg-1:#ffffff;--bg-2:#f0ede7;--bg-3:#e8e4dc;--bg-4:#dcd7ce;
+  --amber:#c97d0a;--amber-dim:#a86808;--amber-glow:rgba(201,125,10,.1);
+  --green:#1a8f55;--green-dim:rgba(26,143,85,.1);
+  --red:#c82828;--red-dim:rgba(200,40,40,.08);
+  --blue:#2666c8;--blue-dim:rgba(38,102,200,.08);
+  --text-0:#1c1a16;--text-1:#4d483f;--text-2:#8e887e;--text-3:#c8c3b8;
+  --border:#e2ded6;--border-light:#d4cfc5;
+  --radius:6px;
+  --font-mono:'JetBrains Mono',monospace;
+  --font-sans:'Noto Sans SC',sans-serif;
+  --font-display:'Space Grotesk',sans-serif;
+}
+html{font-size:14px;scroll-behavior:smooth}
+body{font-family:var(--font-mono);background:var(--bg-0);color:var(--text-0);min-height:100vh;overflow-x:hidden}
+.app{display:grid;grid-template-columns:220px 1fr;min-height:100vh}
+.sidebar{background:var(--bg-1);border-right:1px solid var(--border);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto}
+.sidebar-header{padding:24px 20px 20px;border-bottom:1px solid var(--border)}
+.logo{display:flex;align-items:center;gap:10px}
+.logo-icon{width:32px;height:32px;border:2px solid var(--amber);border-radius:6px;display:grid;place-items:center;position:relative}
+.logo-icon::after{content:'';width:8px;height:8px;background:var(--amber);border-radius:50%;box-shadow:0 0 10px var(--amber-glow)}
+.logo-text{font-family:var(--font-display);font-size:15px;font-weight:600;letter-spacing:-.3px;color:var(--text-0)}
+.logo-sub{font-size:10px;color:var(--text-2);margin-top:4px;letter-spacing:1px}
+.nav{padding:16px 12px;flex:1}
+.nav-section{margin-bottom:20px}
+.nav-label{font-size:9px;letter-spacing:2.5px;text-transform:uppercase;color:var(--text-2);padding:0 8px;margin-bottom:8px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--radius);cursor:pointer;transition:all .2s;color:var(--text-1);font-size:12.5px;position:relative;text-decoration:none;letter-spacing:-.1px}
+.nav-item:hover{background:var(--bg-3);color:var(--text-0)}
+.nav-item.active{background:var(--amber-glow);color:var(--amber);font-weight:500}
+.nav-item.active::before{content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);width:3px;height:20px;background:var(--amber);border-radius:0 3px 3px 0}
+.nav-icon{width:18px;height:18px;opacity:.6;flex-shrink:0}
+.nav-item.active .nav-icon{opacity:1}
+.sidebar-footer{padding:16px 20px;border-top:1px solid var(--border)}
+.status-dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:8px}
+.status-dot.online{background:var(--green);box-shadow:0 0 8px var(--green-dim)}
+.status-dot.offline{background:var(--red)}
+.status-text{font-size:11px;color:var(--text-2)}
+.main{padding:0;overflow-y:auto}
+.main-header{padding:16px 32px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;backdrop-filter:blur(12px);background:rgba(255,255,255,.9)}
+.page-title{font-family:var(--font-display);font-size:18px;font-weight:600;letter-spacing:-.5px}
+.page-title span{color:var(--amber)}
+.header-actions{display:flex;gap:8px}
+.btn{font-family:var(--font-mono);font-size:11px;padding:7px 14px;border-radius:var(--radius);border:1px solid var(--border);background:transparent;color:var(--text-1);cursor:pointer;transition:all .2s;letter-spacing:-.1px;text-decoration:none}
+.btn:hover{border-color:var(--border-light);color:var(--text-0)}
+.btn-primary{background:var(--amber);color:#fff;border-color:var(--amber);font-weight:600}
+.btn-primary:hover{background:var(--amber-dim);border-color:var(--amber-dim)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.content{padding:24px 32px 60px}
+.page{display:none}.page.active{display:block}
+.panel{background:var(--bg-1);border:1px solid var(--border);border-radius:8px;margin-bottom:20px;overflow:hidden}
+.panel-header{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.panel-title{font-size:13px;font-weight:600;letter-spacing:-.2px;display:flex;align-items:center;gap:8px}
+.panel-title .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.panel-body{padding:20px}
+.form-input{font-family:var(--font-mono);font-size:12px;padding:10px 14px;background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text-0);outline:none;transition:all .2s;width:100%}
+.form-input:focus{border-color:var(--amber);box-shadow:0 0 0 3px var(--amber-glow)}
+.chat-container{display:flex;flex-direction:column;height:calc(100vh - 140px)}
+.chat-messages{flex:1;overflow-y:auto;padding:16px 0}
+.chat-msg{margin-bottom:14px;display:flex;gap:12px}
+.chat-msg.user{flex-direction:row-reverse}
+.chat-bubble{max-width:70%;padding:12px 16px;border-radius:12px;font-size:12px;line-height:1.6}
+.chat-msg.user .chat-bubble{background:var(--amber);color:#fff;border-bottom-right-radius:4px}
+.chat-msg.assistant .chat-bubble{background:var(--bg-2);color:var(--text-0);border-bottom-left-radius:4px}
+.chat-msg.system .chat-bubble{background:var(--blue-dim);color:var(--blue);font-size:11px;max-width:100%}
+.chat-input-area{display:flex;gap:8px;padding-top:14px;border-top:1px solid var(--border)}
+.chat-input{flex:1;font-family:var(--font-mono);font-size:12px;padding:12px 16px;background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text-0);outline:none;resize:none;min-height:44px}
+.chat-input:focus{border-color:var(--amber);box-shadow:0 0 0 3px var(--amber-glow)}
+.kanban{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+.kanban-col{background:var(--bg-2);border-radius:8px;padding:12px;min-height:200px}
+.kanban-col-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--border)}
+.kanban-col-title{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-2);display:flex;align-items:center;gap:6px}
+.kanban-count{background:var(--bg-4);padding:1px 6px;border-radius:8px;font-size:10px;color:var(--text-1)}
+.task-card{background:var(--bg-3);border:1px solid var(--border);border-radius:6px;padding:12px;margin-bottom:8px;cursor:pointer;transition:all .2s}
+.task-card:hover{border-color:var(--border-light);transform:translateX(2px)}
+.task-id{font-size:9px;color:var(--text-2);letter-spacing:.5px;margin-bottom:4px}
+.task-title{font-size:11.5px;font-weight:500;margin-bottom:8px;line-height:1.4}
+.task-tags{display:flex;gap:4px;flex-wrap:wrap}
+.tag{font-size:9px;padding:2px 7px;border-radius:3px;letter-spacing:.3px}
+.tag-worker{background:var(--blue-dim);color:var(--blue)}
+.tag-retry{background:var(--amber-glow);color:var(--amber)}
+.tag-human{background:var(--red-dim);color:var(--red)}
+.trace-table{width:100%;border-collapse:collapse}
+.trace-table th{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-2);text-align:left;padding:10px 12px;border-bottom:1px solid var(--border);font-weight:500}
+.trace-table td{font-size:11.5px;padding:10px 12px;border-bottom:1px solid var(--border);color:var(--text-1);vertical-align:middle}
+.trace-table tr:hover td{background:var(--bg-2)}
+.trace-agent{display:flex;align-items:center;gap:8px}
+.trace-agent-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.trace-status{font-size:10px;padding:2px 8px;border-radius:3px;font-weight:500}
+.trace-status.ok{background:var(--green-dim);color:var(--green)}
+.trace-status.err{background:var(--red-dim);color:var(--red)}
+.empty-state{text-align:center;padding:40px;color:var(--text-2);font-size:12px}
+.loading{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--amber);border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+.animate-in{animation:fadeUp .4s ease both}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.25);backdrop-filter:blur(4px);z-index:1000;display:none;place-items:center}
+.modal-overlay.show{display:grid}
+.modal{background:var(--bg-1);border:1px solid var(--border);border-radius:12px;width:520px;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.12)}
+.modal-header{padding:18px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.modal-title{font-family:var(--font-display);font-size:15px;font-weight:600}
+.modal-close{width:28px;height:28px;border-radius:6px;border:none;background:var(--bg-3);color:var(--text-1);cursor:pointer;display:grid;place-items:center;font-size:16px}
+.modal-body{padding:20px}
+.modal-footer{padding:14px 24px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px}
+.detail-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px}
+.detail-label{color:var(--text-2)}
+.detail-value{color:var(--text-0);font-weight:500}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--bg-4);border-radius:3px}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">
+        <div class="logo-icon"></div>
+        <div>
+          <div class="logo-text">多Agent系统</div>
+          <div class="logo-sub">Multi-Agent v0.1</div>
+        </div>
+      </div>
+    </div>
+    <nav class="nav">
+      <div class="nav-section">
+        <div class="nav-label">任务</div>
+        <a class="nav-item" href="#/chat" data-page="chat">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+          对话
+        </a>
+        <a class="nav-item" href="#/projects" data-page="projects">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+          项目看板
+        </a>
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">监控</div>
+        <a class="nav-item" href="#/trace" data-page="trace">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Trace 日志
+        </a>
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">管理</div>
+        <a class="nav-item" href="/admin" style="color:var(--text-2);font-size:11px">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+          管理控制台
+        </a>
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <span class="status-dot" id="sysStatusDot"></span>
+      <span class="status-text" id="sysStatusText">检测中...</span>
+    </div>
+  </aside>
+  <main class="main">
+    <header class="main-header">
+      <div class="page-title" id="pageTitle"><span>▎</span>对话</div>
+      <div class="header-actions">
+        <button class="btn" onclick="location.reload()">刷新</button>
+      </div>
+    </header>
+    <div class="content">
+      <!-- Chat -->
+      <div class="page" id="page-chat">
+        <div class="chat-container">
+          <div class="chat-messages" id="chatMessages">
+            <div class="chat-msg system"><div class="chat-bubble">系统就绪。输入任务请求，Gateway 将自动分类并路由到合适的 Agent 处理。</div></div>
+          </div>
+          <div class="chat-input-area">
+            <textarea class="chat-input" id="chatInput" placeholder="输入任务请求... (Enter 发送, Shift+Enter 换行)" rows="1"></textarea>
+            <button class="btn btn-primary" id="chatSendBtn" onclick="sendChat()">发送</button>
+          </div>
+        </div>
+      </div>
+      <!-- Projects -->
+      <div class="page" id="page-projects">
+        <div class="panel animate-in">
+          <div class="panel-header">
+            <div class="panel-title"><span class="dot" style="background:var(--amber)"></span>查询项目</div>
+          </div>
+          <div class="panel-body">
+            <div style="display:flex;gap:8px">
+              <input class="form-input" id="projectQueryInput" placeholder="输入项目ID，如 PRJ-a1b2c3d4" style="flex:1">
+              <button class="btn btn-primary" onclick="queryProject()">查询</button>
+            </div>
+          </div>
+        </div>
+        <div id="kanbanContainer"><div class="empty-state">输入项目 ID 查询，或在「对话」页面发送项目型任务</div></div>
+      </div>
+      <!-- Trace -->
+      <div class="page" id="page-trace">
+        <div class="panel animate-in">
+          <div class="panel-header">
+            <div class="panel-title"><span class="dot" style="background:var(--blue)"></span>调用链路追踪</div>
+          </div>
+          <div class="panel-body">
+            <div style="display:flex;gap:8px">
+              <input class="form-input" id="traceProjectInput" placeholder="输入项目ID查询 Trace" style="flex:1">
+              <button class="btn btn-primary" onclick="queryTrace()">查询</button>
+            </div>
+          </div>
+        </div>
+        <div class="panel"><div class="panel-body" id="traceContainer" style="padding:0"><div class="empty-state">输入项目 ID 查询调用链路</div></div></div>
+      </div>
+    </div>
+  </main>
+</div>
+<!-- Task Detail Modal -->
+<div class="modal-overlay" id="taskModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="taskModalTitle">任务详情</div>
+      <button class="modal-close" onclick="closeModal('taskModal')">×</button>
+    </div>
+    <div class="modal-body" id="taskModalBody"></div>
+    <div class="modal-footer" id="taskModalFooter"></div>
+  </div>
+</div>
+<script>
+const API = window.location.origin;
+const pageTitles = { chat:'对话', projects:'项目看板', trace:'Trace 日志' };
+
+// ── API Client ──
+async function api(path, opts = {}) {
+  const config = { headers: { 'Content-Type': 'application/json' }, ...opts };
+  if (config.body && typeof config.body === 'object') config.body = JSON.stringify(config.body);
+  const res = await fetch(API + '/api/v1' + path, config);
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+  return await res.json();
+}
+
+// ── Health ──
+async function checkHealth() {
+  const dot = document.getElementById('sysStatusDot');
+  const text = document.getElementById('sysStatusText');
+  try {
+    const res = await fetch(API + '/health');
+    if (res.ok) { dot.className = 'status-dot online'; text.textContent = '系统运行正常'; }
+    else throw 0;
+  } catch { dot.className = 'status-dot offline'; text.textContent = '后端未连接'; }
+}
+
+// ── Hash Router ──
+function navigate() {
+  const hash = location.hash || '#/chat';
+  const pageId = hash.replace('#/', '') || 'chat';
+  if (!pageTitles[pageId]) { location.hash = '#/chat'; return; }
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item[data-page]').forEach(n => n.classList.remove('active'));
+  const page = document.getElementById('page-' + pageId);
+  if (page) page.classList.add('active');
+  const navItem = document.querySelector(`.nav-item[data-page="${pageId}"]`);
+  if (navItem) navItem.classList.add('active');
+  document.getElementById('pageTitle').innerHTML = '<span>▎</span>' + pageTitles[pageId];
+}
+window.addEventListener('hashchange', navigate);
+
+// ── Chat ──
+document.getElementById('chatInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
+});
+
+function addMsg(role, text) {
+  const div = document.createElement('div');
+  div.className = 'chat-msg ' + role;
+  div.innerHTML = '<div class="chat-bubble">' + esc(text).replace(/\n/g, '<br>') + '</div>';
+  document.getElementById('chatMessages').appendChild(div);
+  div.scrollIntoView({ behavior: 'smooth' });
+}
+
+async function sendChat() {
+  const input = document.getElementById('chatInput');
+  const btn = document.getElementById('chatSendBtn');
+  const msg = input.value.trim();
+  if (!msg) return;
+  input.value = ''; btn.disabled = true; btn.innerHTML = '<span class="loading"></span>';
+  addMsg('user', msg);
+  try {
+    const data = await api('/chat', { method: 'POST', body: { message: msg, tenant_id: 'default', user_id: 'web-user' } });
+    let resp = data.response || '无响应';
+    if (data.project_id) resp = `[项目 ${data.project_id}]\n${resp}`;
+    if (data.tasks && data.tasks.length > 0) resp += '\n\n任务列表:\n' + data.tasks.map(t => `  [${t.status}] ${t.title} → ${t.assigned_worker || '未分配'}`).join('\n');
+    if (data.error) resp += `\n\n错误: ${data.error}`;
+    addMsg('assistant', resp);
+  } catch (e) { addMsg('assistant', '请求失败: ' + e.message); }
+  finally { btn.disabled = false; btn.textContent = '发送'; }
+}
+
+// ── Projects ──
+async function queryProject() {
+  const pid = document.getElementById('projectQueryInput').value.trim();
+  if (!pid) return;
+  const c = document.getElementById('kanbanContainer');
+  c.innerHTML = '<div class="empty-state"><span class="loading"></span> 加载中...</div>';
+  try {
+    const data = await api('/projects/' + encodeURIComponent(pid));
+    const cols = { TODO:[], DOING:[], REVIEW:[], DONE:[], HUMAN_PENDING:[] };
+    (data.tasks || []).forEach(t => { if (cols[t.status]) cols[t.status].push(t); });
+    const colors = { TODO:'var(--text-2)', DOING:'var(--blue)', REVIEW:'var(--amber)', DONE:'var(--green)', HUMAN_PENDING:'var(--red)' };
+    let html = '<div class="kanban">';
+    for (const [s, tasks] of Object.entries(cols)) {
+      html += `<div class="kanban-col"><div class="kanban-col-header"><div class="kanban-col-title"><span style="color:${colors[s]}">●</span> ${s}</div><span class="kanban-count">${tasks.length}</span></div>`;
+      tasks.forEach(t => {
+        const tags = [];
+        if (t.assigned_worker) tags.push(`<span class="tag tag-worker">${t.assigned_worker}</span>`);
+        if (t.retry_count > 0) tags.push(`<span class="tag tag-retry">重试 ${t.retry_count}</span>`);
+        if (t.status === 'HUMAN_PENDING') tags.push('<span class="tag tag-human">人工介入</span>');
+        html += `<div class="task-card" onclick="showTask('${t.task_id}')"><div class="task-id">${t.task_id}</div><div class="task-title">${esc(t.title)}</div><div class="task-tags">${tags.join('')}</div></div>`;
+      });
+      html += '</div>';
+    }
+    c.innerHTML = html + '</div>';
+  } catch (e) { c.innerHTML = '<div class="empty-state">查询失败: ' + esc(e.message) + '</div>'; }
+}
+
+async function showTask(taskId) {
+  try {
+    const t = await api('/tasks/' + encodeURIComponent(taskId));
+    document.getElementById('taskModalTitle').textContent = t.title;
+    let body = `<div class="detail-row"><span class="detail-label">任务ID</span><span class="detail-value">${t.task_id}</span></div>
+      <div class="detail-row"><span class="detail-label">状态</span><span class="detail-value">${t.status}</span></div>
+      <div class="detail-row"><span class="detail-label">Worker</span><span class="detail-value">${t.assigned_worker||'-'}</span></div>
+      <div class="detail-row"><span class="detail-label">重试次数</span><span class="detail-value">${t.retry_count}</span></div>`;
+    if (t.output_summary) body += `<div style="margin-top:12px;padding:12px;background:var(--bg-2);border-radius:var(--radius);font-size:11px;white-space:pre-wrap">${esc(t.output_summary)}</div>`;
+    if (t.last_error) body += `<div style="margin-top:8px;padding:12px;background:var(--red-dim);border-radius:var(--radius);font-size:11px;color:var(--red);white-space:pre-wrap">${esc(t.last_error)}</div>`;
+    document.getElementById('taskModalBody').innerHTML = body;
+    let footer = '<button class="btn" onclick="closeModal(\'taskModal\')">关闭</button>';
+    if (t.status === 'HUMAN_PENDING') footer += `<button class="btn btn-primary" onclick="humanFix('${t.task_id}')">人工处理</button>`;
+    document.getElementById('taskModalFooter').innerHTML = footer;
+    document.getElementById('taskModal').classList.add('show');
+  } catch (e) { alert('查询失败: ' + e.message); }
+}
+
+async function humanFix(taskId) {
+  const comment = prompt('请输入处理备注:');
+  if (comment === null) return;
+  try {
+    await api('/tasks/' + encodeURIComponent(taskId), { method:'PATCH', body:{ status:'DONE', resolution:'human_fix', comment } });
+    closeModal('taskModal'); alert('处理成功');
+    const pid = document.getElementById('projectQueryInput').value.trim();
+    if (pid) queryProject();
+  } catch (e) { alert('操作失败: ' + e.message); }
+}
+
+// ── Trace ──
+async function queryTrace() {
+  const pid = document.getElementById('traceProjectInput').value.trim();
+  if (!pid) return;
+  const c = document.getElementById('traceContainer');
+  c.innerHTML = '<div class="empty-state"><span class="loading"></span> 加载中...</div>';
+  try {
+    const data = await api('/projects/' + encodeURIComponent(pid) + '/trace');
+    if (!data.traces || data.traces.length === 0) { c.innerHTML = '<div class="empty-state">暂无 Trace 记录</div>'; return; }
+    const agentColors = { gateway:'var(--amber)', pm:'#7a4cc0', analyzer:'var(--blue)', coder:'var(--amber)', tester:'var(--green)' };
+    let html = '<table class="trace-table"><thead><tr><th>Agent</th><th>任务</th><th>耗时</th><th>Tokens</th><th>状态</th></tr></thead><tbody>';
+    data.traces.forEach(t => {
+      const color = agentColors[t.agent_name] || 'var(--text-2)';
+      const tokens = `${t.prompt_tokens||0} / ${t.completion_tokens||0}`;
+      const latency = t.latency_ms ? (t.latency_ms > 1000 ? (t.latency_ms/1000).toFixed(1)+'s' : t.latency_ms+'ms') : '-';
+      const status = t.failure_reason ? '<span class="trace-status err">ERR</span>' : '<span class="trace-status ok">OK</span>';
+      html += `<tr><td><div class="trace-agent"><span class="trace-agent-dot" style="background:${color}"></span>${t.agent_name}</div></td><td>${t.task_id||'-'}</td><td>${latency}</td><td style="color:var(--text-2)">${tokens}</td><td>${status}</td></tr>`;
+    });
+    c.innerHTML = html + '</tbody></table>';
+  } catch (e) { c.innerHTML = '<div class="empty-state">查询失败: ' + esc(e.message) + '</div>'; }
+}
+
+// ── Utils ──
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// ── Init ──
+checkHealth();
+setInterval(checkHealth, 30000);
+navigate();
+</script>
+</body>
+</html>
