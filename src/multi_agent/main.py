@@ -5,6 +5,11 @@ import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+# 加载 .env 到 os.environ，确保 LangSmith 等第三方库能读取到环境变量
+load_dotenv()
+
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
