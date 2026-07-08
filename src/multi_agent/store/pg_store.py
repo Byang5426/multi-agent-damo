@@ -17,6 +17,7 @@ from multi_agent.store.project_store import ProjectStore
 from multi_agent.store.prompt_store import PromptStore
 from multi_agent.store.task_store import TaskStore
 from multi_agent.store.trace_store import TraceStore
+from multi_agent.scheduler.schedule_store import ScheduleStore
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,7 @@ class PgStore:
     - TaskStore: Task CRUD
     - TraceStore: Trace CRUD
     - PromptStore: Agent Prompt CRUD
+    - ScheduleStore: Schedule CRUD
     """
 
     def __init__(
@@ -47,6 +49,7 @@ class PgStore:
         self._task_store: Optional[TaskStore] = None
         self._trace_store: Optional[TraceStore] = None
         self._prompt_store: Optional[PromptStore] = None
+        self._schedule_store: Optional[ScheduleStore] = None
 
     async def initialize(self):
         """创建连接池并初始化表结构。"""
@@ -62,6 +65,7 @@ class PgStore:
         self._task_store = TaskStore(self._pool)
         self._trace_store = TraceStore(self._pool)
         self._prompt_store = PromptStore(self._pool)
+        self._schedule_store = ScheduleStore(self._pool)
 
         logger.info("PostgreSQL connection pool created (%d-%d)", self.min_connections, self.max_connections)
 
@@ -135,3 +139,12 @@ class PgStore:
 
     async def seed_prompts(self, defaults: dict[str, str]) -> int:
         return await self._prompt_store.seed_prompts(defaults)
+
+    # ── Schedule operations (delegated) ──
+
+    @property
+    def schedule_store(self) -> ScheduleStore:
+        """获取 ScheduleStore 实例（供 ScheduleManager 使用）。"""
+        if self._schedule_store is None:
+            raise RuntimeError("Database not initialized")
+        return self._schedule_store

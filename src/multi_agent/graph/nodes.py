@@ -1,16 +1,23 @@
 """LangGraph 工作流节点函数。"""
 
+import json
 import logging
 import uuid
 from typing import Any
 
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_openai import ChatOpenAI
+
 from multi_agent.agents import get_worker
 from multi_agent.agents.pm_agent import PMAgent
+from multi_agent.config import settings as app_settings
 from multi_agent.gateway.router import GatewayRouter, RouteDecision
 from multi_agent.graph.state import WorkflowState
 from multi_agent.models.project import Project, ProjectStatus
 from multi_agent.models.task import Task, TaskStatus
+from multi_agent.notify.service import NotificationPayload, get_notification_service
 from multi_agent.store.pg_store import PgStore
+from multi_agent.trace.langfuse_integration import report_trace_to_langfuse
 
 logger = logging.getLogger(__name__)
 
@@ -63,10 +70,12 @@ async def instant_handler(state: WorkflowState) -> dict[str, Any]:
         description=state["user_input"],
     )
 
-    # Persist trace to database
+    # Persist trace to database (PostgreSQL 本地备份)
     store: PgStore = state.get("_store")  # type: ignore[assignment]
     if store:
         await store.save_trace(trace)
+    # 同步上报到 Langfuse（fire-and-forget，失败不影响主流程）
+    await report_trace_to_langfuse(trace)
 
     return {
         "worker_output": output.model_dump(),
@@ -85,16 +94,88 @@ async def blocked_handler(state: WorkflowState) -> dict[str, Any]:
     }
 
 
+# ── Scheduled task parse prompt ──
+
+_SCHEDULE_PARSE_PROMPT = (
+    "你是一个调度任务解析器。将用户的自然语言请求解析为结构化调度任务。\n\n"
+    "输出JSON格式：\n"
+    '{"name": "任务名称", "cron_expression": "分 时 日 月 周", '
+    '"description": "要执行的任务描述", "timezone": "Asia/Shanghai"}\n\n'
+    "常见 cron 表达式参考：\n"
+    '- 每天早上9点: "0 9 * * *"\n'
+    '- 每周一早上9点: "0 9 * * 1"\n'
+    '- 每小时: "0 * * * *"\n'
+    '- 每天下午6点: "0 18 * * *"\n\n'
+    "规则：\n"
+    "- 从用户请求中提取执行频率和时间\n"
+    "- 生成合理的 cron 表达式\n"
+    "- description 应包含执行所需的所有上下文\n"
+)
+
+
 async def scheduled_handler(state: WorkflowState) -> dict[str, Any]:
-    """Handle scheduled task requests (not yet supported in MVP)."""
-    return {
-        "final_response": (
-            "定时任务功能尚未开放（MVP 阶段暂不支持）。"
-            "请将您的请求作为即时任务或项目型任务重新提交。"
-        ),
-        "error": "scheduled_not_supported",
-        "trace_logs": [],
-    }
+    """Handle scheduled task requests: register a new schedule.
+
+    将用户的自然语言调度请求解析为结构化调度任务，并注册到调度器。
+    """
+    store: PgStore = state.get("_store")  # type: ignore[assignment]
+    user_input = state["user_input"]
+    tenant_id = state.get("tenant_id", "default")
+    user_id = state.get("user_id", "anonymous")
+
+    try:
+        llm = ChatOpenAI(
+            model=app_settings.gateway_model,
+            api_key=app_settings.openai_api_key,
+            base_url=app_settings.openai_base_url or None,
+            temperature=0,
+        )
+
+        response = await llm.ainvoke(
+            [
+                SystemMessage(content=_SCHEDULE_PARSE_PROMPT),
+                HumanMessage(content=user_input),
+            ],
+            response_format={"type": "json_object"},
+        )
+
+        data = json.loads(response.content)
+
+        # 通过 ScheduleManager 创建调度任务
+        from multi_agent.scheduler.manager import ScheduleManager
+
+        schedule_mgr = ScheduleManager(store)
+        schedule = await schedule_mgr.create_schedule(
+            name=data.get("name", "Scheduled Task"),
+            description=data.get("description", user_input),
+            cron_expression=data.get("cron_expression", "0 9 * * *"),
+            timezone=data.get("timezone", "Asia/Shanghai"),
+            tenant_id=tenant_id,
+            created_by=user_id,
+        )
+
+        return {
+            "final_response": (
+                f"定时任务已创建成功！\n"
+                f"  调度ID: {schedule.schedule_id}\n"
+                f"  名称: {schedule.name}\n"
+                f"  执行频率: {schedule.cron_expression}\n"
+                f"  下次执行: {schedule.next_run_at or '待计算'}\n\n"
+                f"可通过 GET /api/v1/schedules 查看所有调度任务。"
+            ),
+            "trace_logs": [],
+        }
+
+    except Exception as e:
+        logger.error("Scheduled handler failed: %s", e, exc_info=True)
+        return {
+            "final_response": (
+                f"定时任务创建失败: {e}\n"
+                "请检查输入格式后重试。"
+            ),
+            "error": f"schedule_creation_failed: {e}",
+            "trace_logs": [],
+        }
 
 
 async def project_init(state: WorkflowState) -> dict[str, Any]:
@@ -119,9 +200,11 @@ async def project_init(state: WorkflowState) -> dict[str, Any]:
     pm = _get_pm()
     tasks, trace = await pm.decompose(state["user_input"], project_id)
 
-    # Persist trace to database
+    # Persist trace to database (PostgreSQL 本地备份)
     if store:
         await store.save_trace(trace)
+    # 同步上报到 Langfuse
+    await report_trace_to_langfuse(trace)
 
     if not tasks:
         return {
@@ -203,6 +286,8 @@ async def worker_execute(state: WorkflowState) -> dict[str, Any]:
     if store:
         await store.update_task(task)
         await store.save_trace(trace)
+    # 同步上报到 Langfuse
+    await report_trace_to_langfuse(trace)
 
     # Update the in-state task list
     updated_tasks = list(tasks)
@@ -253,6 +338,8 @@ async def pm_review(state: WorkflowState) -> dict[str, Any]:
     if store:
         await store.update_task(task)
         await store.save_trace(trace)
+    # 同步上报到 Langfuse
+    await report_trace_to_langfuse(trace)
 
     # Update the in-state task list
     updated_tasks = list(tasks)
@@ -295,6 +382,27 @@ async def handle_failure(state: WorkflowState) -> dict[str, Any]:
     if store:
         await store.update_task(task)
         await store.save_trace(trace)
+    # 同步上报到 Langfuse
+    await report_trace_to_langfuse(trace)
+
+    # 当 PM 决策为 escalate_to_human 时，触发人工介入通知
+    if decision.action == "escalate_to_human":
+        try:
+            project_data = state.get("project") or {}
+            notify_svc = get_notification_service()
+            payload = NotificationPayload(
+                task_id=task.task_id,
+                project_title=project_data.get("title", ""),
+                failure_reason=task.last_error or decision.reason,
+                output_summary=task.output_summary or "",
+                tenant_id=state.get("tenant_id", "default"),
+                assigned_worker=task.assigned_worker or "",
+                retry_count=task.retry_count,
+                max_retries=task.max_retries,
+            )
+            await notify_svc.notify(payload)
+        except Exception as notify_err:
+            logger.error("Notification failed (non-blocking): %s", notify_err)
 
     updated_tasks = list(tasks)
     updated_tasks[idx] = task.model_dump()

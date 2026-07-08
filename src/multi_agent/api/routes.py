@@ -11,6 +11,8 @@ from multi_agent.api.schemas import (
     HumanInterventionRequest,
     ProjectResponse,
     PromptUpdateRequest,
+    ScheduleCreateRequest,
+    ScheduleResponse,
     TaskResponse,
 )
 from multi_agent.graph.workflow import run_workflow
@@ -248,3 +250,141 @@ async def update_prompt(request: Request, prompt_id: str, body: PromptUpdateRequ
         "message": f"Prompt '{prompt_id}' 已更新到版本 v{updated.version}",
         "prompt": updated.model_dump(),
     }
+
+
+# ── 定时任务管理 ──
+
+
+@router.get(
+    "/schedules",
+    response_model=list[ScheduleResponse],
+    summary="查询调度任务列表",
+    description="获取所有定时调度任务。",
+)
+async def list_schedules(request: Request):
+    """列出所有调度任务。"""
+    schedule_store = request.app.state.store.schedule_store
+    schedules = await schedule_store.list_schedules()
+    return [
+        ScheduleResponse(
+            schedule_id=s.schedule_id,
+            name=s.name,
+            description=s.description,
+            cron_expression=s.cron_expression,
+            timezone=s.timezone,
+            status=s.status.value,
+            tenant_id=s.tenant_id,
+            last_run_at=s.last_run_at.isoformat() if s.last_run_at else None,
+            next_run_at=s.next_run_at.isoformat() if s.next_run_at else None,
+            run_count=s.run_count,
+            last_error=s.last_error,
+        )
+        for s in schedules
+    ]
+
+
+@router.post(
+    "/schedules",
+    response_model=ScheduleResponse,
+    summary="创建调度任务",
+    description="手动创建定时调度任务。",
+)
+async def create_schedule(request: Request, body: ScheduleCreateRequest):
+    """创建新的调度任务。"""
+    schedule_store = request.app.state.store.schedule_store
+    from multi_agent.scheduler.manager import ScheduleManager
+
+    mgr = ScheduleManager(request.app.state.store)
+    schedule = await mgr.create_schedule(
+        name=body.name,
+        description=body.description,
+        cron_expression=body.cron_expression,
+        timezone=body.timezone or "Asia/Shanghai",
+        tenant_id=body.tenant_id or "default",
+        created_by=body.created_by or "api",
+    )
+    return ScheduleResponse(
+        schedule_id=schedule.schedule_id,
+        name=schedule.name,
+        description=schedule.description,
+        cron_expression=schedule.cron_expression,
+        timezone=schedule.timezone,
+        status=schedule.status.value,
+        tenant_id=schedule.tenant_id,
+        last_run_at=schedule.last_run_at.isoformat() if schedule.last_run_at else None,
+        next_run_at=schedule.next_run_at.isoformat() if schedule.next_run_at else None,
+        run_count=schedule.run_count,
+        last_error=schedule.last_error,
+    )
+
+
+@router.get(
+    "/schedules/{schedule_id}",
+    response_model=ScheduleResponse,
+    summary="查询调度任务",
+    description="获取单个调度任务详情。",
+)
+async def get_schedule(request: Request, schedule_id: str):
+    """查询单个调度任务。"""
+    schedule_store = request.app.state.store.schedule_store
+    schedule = await schedule_store.get_schedule(schedule_id)
+    if not schedule:
+        raise HTTPException(status_code=404, detail="调度任务不存在")
+    return ScheduleResponse(
+        schedule_id=schedule.schedule_id,
+        name=schedule.name,
+        description=schedule.description,
+        cron_expression=schedule.cron_expression,
+        timezone=schedule.timezone,
+        status=schedule.status.value,
+        tenant_id=schedule.tenant_id,
+        last_run_at=schedule.last_run_at.isoformat() if schedule.last_run_at else None,
+        next_run_at=schedule.next_run_at.isoformat() if schedule.next_run_at else None,
+        run_count=schedule.run_count,
+        last_error=schedule.last_error,
+    )
+
+
+@router.post(
+    "/schedules/{schedule_id}/pause",
+    summary="暂停调度任务",
+)
+async def pause_schedule(request: Request, schedule_id: str):
+    """暂停调度任务。"""
+    from multi_agent.scheduler.manager import ScheduleManager
+
+    mgr = ScheduleManager(request.app.state.store)
+    schedule = await mgr.pause_schedule(schedule_id)
+    if not schedule:
+        raise HTTPException(status_code=404, detail="调度任务不存在")
+    return {"message": f"调度任务 '{schedule_id}' 已暂停", "status": schedule.status.value}
+
+
+@router.post(
+    "/schedules/{schedule_id}/resume",
+    summary="恢复调度任务",
+)
+async def resume_schedule(request: Request, schedule_id: str):
+    """恢复调度任务。"""
+    from multi_agent.scheduler.manager import ScheduleManager
+
+    mgr = ScheduleManager(request.app.state.store)
+    schedule = await mgr.resume_schedule(schedule_id)
+    if not schedule:
+        raise HTTPException(status_code=404, detail="调度任务不存在")
+    return {"message": f"调度任务 '{schedule_id}' 已恢复", "status": schedule.status.value}
+
+
+@router.delete(
+    "/schedules/{schedule_id}",
+    summary="删除调度任务",
+)
+async def delete_schedule(request: Request, schedule_id: str):
+    """删除调度任务。"""
+    from multi_agent.scheduler.manager import ScheduleManager
+
+    mgr = ScheduleManager(request.app.state.store)
+    deleted = await mgr.delete_schedule(schedule_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="调度任务不存在")
+    return {"message": f"调度任务 '{schedule_id}' 已删除"}

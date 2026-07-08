@@ -19,6 +19,7 @@ from multi_agent.api.routes import router
 from multi_agent.config import settings
 from multi_agent.defaults.prompts import DEFAULT_PROMPTS
 from multi_agent.prompt_loader import init_prompt_loader
+from multi_agent.scheduler.manager import ScheduleManager
 from multi_agent.store.pg_store import PgStore
 
 logging.basicConfig(
@@ -34,10 +35,13 @@ store = PgStore(
     max_connections=settings.pg_max_connections,
 )
 
+# 全局调度器实例（单例）
+schedule_manager = ScheduleManager(store)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """应用生命周期管理：启动时初始化数据库，关闭时释放连接。"""
+    """应用生命周期管理：启动时初始化数据库和调度器，关闭时释放资源。"""
     await store.initialize()
     logger.info("Database initialized (PostgreSQL)")
 
@@ -46,7 +50,13 @@ async def lifespan(app: FastAPI):
     seeded = await store.seed_prompts(DEFAULT_PROMPTS)
     logger.info("Seeded %d default prompts", seeded)
 
+    # 启动定时调度器
+    await schedule_manager.start()
+
     yield
+
+    # 关闭调度器
+    await schedule_manager.stop()
     await store.close()
     logger.info("Database connection closed")
 

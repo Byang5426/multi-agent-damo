@@ -34,6 +34,16 @@ class Settings(BaseSettings):
     max_project_tasks: int = 20
     max_tokens_per_request: int = 4096
 
+    # Langfuse Trace（可选，未配置时仅保留 PostgreSQL 本地备份）
+    langfuse_public_key: str = ""
+    langfuse_secret_key: str = ""
+    langfuse_host: str = "https://cloud.langfuse.com"
+    langfuse_enabled: bool = False  # 当 public_key 和 secret_key 均非空时自动启用
+
+    # Scheduler（定时任务调度）
+    scheduler_enabled: bool = True
+    scheduler_poll_interval: int = 30  # 轮询间隔（秒）
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
     @property
@@ -43,6 +53,11 @@ class Settings(BaseSettings):
             f"postgresql://{self.pg_user}:{self.pg_password}"
             f"@{self.pg_host}:{self.pg_port}/{self.pg_database}"
         )
+
+    @property
+    def is_langfuse_enabled(self) -> bool:
+        """Langfuse 是否已配置并启用。"""
+        return bool(self.langfuse_public_key and self.langfuse_secret_key)
 
 
 settings = Settings()

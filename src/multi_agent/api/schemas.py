@@ -73,3 +73,30 @@ class PromptResponse(BaseModel):
     content: str
     description: str
     is_active: bool
+
+
+class ScheduleCreateRequest(BaseModel):
+    """创建调度任务请求体。"""
+
+    name: str = Field(..., description="调度任务名称")
+    description: str = Field(..., description="任务描述（将作为 user_input 传递给工作流）")
+    cron_expression: str = Field(..., description="Cron 表达式，如 '0 9 * * *'")
+    timezone: Optional[str] = Field(default="Asia/Shanghai", description="时区")
+    tenant_id: Optional[str] = Field(default="default", description="租户ID")
+    created_by: Optional[str] = Field(default="api", description="创建者")
+
+
+class ScheduleResponse(BaseModel):
+    """调度任务响应体。"""
+
+    schedule_id: str = Field(description="调度任务ID")
+    name: str = Field(description="任务名称")
+    description: str = Field(description="任务描述")
+    cron_expression: str = Field(description="Cron 表达式")
+    timezone: str = Field(description="时区")
+    status: str = Field(description="状态")
+    tenant_id: str = Field(description="租户ID")
+    last_run_at: Optional[str] = Field(default=None, description="上次执行时间")
+    next_run_at: Optional[str] = Field(default=None, description="下次执行时间")
+    run_count: int = Field(default=0, description="已执行次数")
+    last_error: Optional[str] = Field(default=None, description="最近一次错误")

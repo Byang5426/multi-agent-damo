@@ -99,4 +99,29 @@ CREATE INDEX IF NOT EXISTS idx_prompts_agent
     ON agent_prompts (agent_name);
 CREATE INDEX IF NOT EXISTS idx_prompts_active
     ON agent_prompts (prompt_id) WHERE is_active = true;
+
+-- 定时调度任务表
+CREATE TABLE IF NOT EXISTS schedules (
+    schedule_id      TEXT PRIMARY KEY,
+    name             TEXT NOT NULL,
+    description      TEXT NOT NULL,
+    cron_expression  TEXT NOT NULL,
+    timezone         TEXT NOT NULL DEFAULT 'Asia/Shanghai',
+    status           TEXT NOT NULL DEFAULT 'ACTIVE',
+    tenant_id        TEXT NOT NULL DEFAULT 'default',
+    created_by       TEXT NOT NULL DEFAULT 'system',
+    last_run_at      TIMESTAMPTZ,
+    next_run_at      TIMESTAMPTZ,
+    run_count        INTEGER NOT NULL DEFAULT 0,
+    last_error       TEXT,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_schedules_status
+    ON schedules (status);
+CREATE INDEX IF NOT EXISTS idx_schedules_next_run
+    ON schedules (next_run_at) WHERE status = 'ACTIVE';
+CREATE INDEX IF NOT EXISTS idx_schedules_tenant
+    ON schedules (tenant_id);
 """
