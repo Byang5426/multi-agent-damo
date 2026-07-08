@@ -57,6 +57,7 @@ async def chat(request: Request, body: ChatRequest):
         return ChatResponse(
             response=result.get("final_response", ""),
             project_id=project_id,
+            schedule_id=result.get("schedule_id"),
             tasks=result.get("tasks", []),
             trace_count=len(result.get("trace_logs", [])),
             error=result.get("error"),

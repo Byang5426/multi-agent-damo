@@ -161,6 +161,7 @@ async def run_workflow(
         "worker_output": None,
         "rejection_reason": None,
         "final_response": "",
+        "schedule_id": None,
         "trace_logs": [],
         "error": None,
         "_store": store,  # type: ignore[dict-item]

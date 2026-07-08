@@ -183,6 +183,10 @@ body{font-family:var(--font-mono);background:var(--bg-0);color:var(--text-0);min
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
           Trace 日志
         </a>
+        <a class="nav-item" href="#/schedules" data-page="schedules">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          定时任务
+        </a>
       </div>
       <div class="nav-section">
         <div class="nav-label">系统</div>
@@ -227,6 +231,8 @@ body{font-family:var(--font-mono);background:var(--bg-0);color:var(--text-0);min
               <div class="detail-row"><span class="detail-label">Prompt 注入防护</span><span class="detail-value" style="color:var(--green)">已启用</span></div>
               <div class="detail-row"><span class="detail-label">租户隔离</span><span class="detail-value" style="color:var(--green)">已启用</span></div>
               <div class="detail-row"><span class="detail-label">请求追踪</span><span class="detail-value" style="color:var(--green)">已启用</span></div>
+              <div class="detail-row"><span class="detail-label">定时调度器</span><span class="detail-value" id="dashSchedulerStatus" style="color:var(--text-2)">检测中...</span></div>
+              <div class="detail-row"><span class="detail-label">Langfuse 追踪</span><span class="detail-value" id="dashLangfuseStatus" style="color:var(--text-2)">检测中...</span></div>
             </div>
           </div>
         </div>
@@ -327,6 +333,21 @@ body{font-family:var(--font-mono);background:var(--bg-0);color:var(--text-0);min
             </div>
           </div>
         </div>
+        <div class="two-col">
+          <div class="panel"><div class="panel-header"><div class="panel-title"><span class="dot" style="background:var(--amber)"></span>定时调度器</div></div>
+            <div class="panel-body">
+              <div class="detail-row"><span class="detail-label">启用状态</span><span class="detail-value" id="settingsSchedulerEnabled" style="color:var(--text-2)">检测中...</span></div>
+              <div class="detail-row"><span class="detail-label">轮询间隔</span><span class="detail-value" id="settingsSchedulerInterval">-</span></div>
+            </div>
+          </div>
+          <div class="panel"><div class="panel-header"><div class="panel-title"><span class="dot" style="background:#7a4cc0"></span>Langfuse 追踪</div></div>
+            <div class="panel-body">
+              <div class="detail-row"><span class="detail-label">启用状态</span><span class="detail-value" id="settingsLangfuseEnabled" style="color:var(--text-2)">检测中...</span></div>
+              <div class="detail-row"><span class="detail-label">Host</span><span class="detail-value" id="settingsLangfuseHost">-</span></div>
+              <div class="detail-row"><span class="detail-label">Public Key</span><span class="detail-value" id="settingsLangfuseKey">-</span></div>
+            </div>
+          </div>
+        </div>
         <div class="panel"><div class="panel-header"><div class="panel-title"><span class="dot" style="background:var(--red)"></span>安全</div></div>
           <div class="panel-body">
             <div class="toggle-row"><div class="toggle-info"><div class="toggle-title">Prompt 注入检测</div><div class="toggle-desc">Gateway 入口正则匹配</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
@@ -336,12 +357,27 @@ body{font-family:var(--font-mono);background:var(--bg-0);color:var(--text-0);min
           </div>
         </div>
       </div>
+      <!-- Schedules -->
+      <div class="page" id="page-schedules">
+        <div class="panel"><div class="panel-header"><div class="panel-title"><span class="dot" style="background:var(--amber)"></span>创建调度任务</div></div>
+          <div class="panel-body"><div class="form-grid">
+            <div class="form-group"><label class="form-label">任务名称</label><input class="form-input" id="schName" placeholder="如：每日代码审查"></div>
+            <div class="form-group"><label class="form-label">Cron 表达式</label><input class="form-input" id="schCron" placeholder="分 时 日 月 周，如 0 9 * * *"><div class="form-hint">例: 0 9 * * 1 = 每周一 9:00</div></div>
+            <div class="form-group full"><label class="form-label">任务描述</label><textarea class="form-input form-textarea" id="schDesc" placeholder="执行时传递给工作流的描述..."></textarea></div>
+            <div class="form-group"><label class="form-label">时区</label><input class="form-input" id="schTz" value="Asia/Shanghai"></div>
+            <div class="form-group" style="justify-content:flex-end"><button class="btn btn-primary" onclick="createSchedule()">创建</button></div>
+          </div></div>
+        </div>
+        <div class="panel"><div class="panel-header"><div class="panel-title"><span class="dot" style="background:var(--blue)"></span>调度任务列表</div><button class="btn" onclick="loadSchedules()">刷新</button></div>
+          <div class="panel-body" id="scheduleTableContainer" style="padding:0"><div class="empty-state"><span class="loading"></span> 加载中...</div></div>
+        </div>
+      </div>
     </div>
   </main>
 </div>
 <script>
 const API = window.location.origin;
-const pageTitles = { dashboard:'仪表盘', agents:'Agent 管理', llm:'模型配置', gateway:'Gateway 路由', prompts:'Prompt 管理', projects:'项目 & 任务', trace:'Trace 日志', settings:'系统设置' };
+const pageTitles = { dashboard:'仪表盘', agents:'Agent 管理', llm:'模型配置', gateway:'Gateway 路由', prompts:'Prompt 管理', projects:'项目 & 任务', trace:'Trace 日志', settings:'系统设置', schedules:'定时任务' };
 let currentPromptKey = 'pm_decompose';
 
 // ── API ──
@@ -367,6 +403,8 @@ function navigate() {
   document.getElementById('pageTitle').innerHTML = '<span>▎</span>' + pageTitles[id];
   if (id==='dashboard') loadDashboard();
   if (id==='prompts') loadPrompts();
+  if (id==='schedules') loadSchedules();
+  if (id==='settings') loadSettings();
 }
 window.addEventListener('hashchange', navigate);
 
@@ -377,6 +415,28 @@ async function loadDashboard() {
   document.getElementById('agentStatusList').innerHTML = agents.map((a,i)=>
     `<div class="detail-row"><span class="detail-label">${a}</span><span class="detail-value" style="color:var(--green)">${models[i]} · 在线</span></div>`
   ).join('');
+  // Detect scheduler status
+  try {
+    const schedules = await api('/schedules');
+    const el = document.getElementById('dashSchedulerStatus');
+    el.textContent = '已启用 · ' + schedules.length + ' 个任务';
+    el.style.color = 'var(--green)';
+  } catch {
+    const el = document.getElementById('dashSchedulerStatus');
+    el.textContent = '未启用';
+    el.style.color = 'var(--text-2)';
+  }
+  // Langfuse status (read from settings config if available)
+  try {
+    const lf = JSON.parse(localStorage.getItem('langfuseCfg') || '{}');
+    const el = document.getElementById('dashLangfuseStatus');
+    if (lf.enabled) { el.textContent = '已启用'; el.style.color = 'var(--green)'; }
+    else { el.textContent = '未启用'; el.style.color = 'var(--text-2)'; }
+  } catch {
+    const el = document.getElementById('dashLangfuseStatus');
+    el.textContent = '未配置';
+    el.style.color = 'var(--text-2)';
+  }
 }
 
 // ── Prompts ──
@@ -458,6 +518,83 @@ async function adminQueryTrace() {
     });
     c.innerHTML=h+'</tbody></table>';
   } catch(e) { c.innerHTML='<div class="empty-state">查询失败</div>'; }
+}
+
+// ── Schedules ──
+async function loadSchedules() {
+  const c = document.getElementById('scheduleTableContainer');
+  c.innerHTML = '<div class="empty-state"><span class="loading"></span> 加载中...</div>';
+  try {
+    const data = await api('/schedules');
+    if (!data || !data.length) { c.innerHTML = '<div class="empty-state">暂无调度任务，请在上方表单创建</div>'; return; }
+    const statusColor = { ACTIVE:'var(--green)', PAUSED:'var(--amber)', FAILED:'var(--red)' };
+    let h = '<table class="trace-table"><thead><tr><th>ID</th><th>名称</th><th>Cron</th><th>时区</th><th>状态</th><th>下次执行</th><th>执行次数</th><th>错误</th><th>操作</th></tr></thead><tbody>';
+    data.forEach(s => {
+      const sc = statusColor[s.status] || 'var(--text-2)';
+      const nextRun = s.next_run_at ? new Date(s.next_run_at).toLocaleString('zh-CN') : '-';
+      const err = s.last_error ? `<span style="color:var(--red)">${esc(s.last_error.slice(0,30))}</span>` : '-';
+      const pauseBtn = s.status==='ACTIVE'
+        ? `<button class="btn" style="font-size:9px;padding:3px 7px" onclick="pauseSchedule('${s.schedule_id}')">暂停</button>`
+        : `<button class="btn" style="font-size:9px;padding:3px 7px" onclick="resumeSchedule('${s.schedule_id}')">恢复</button>`;
+      h += `<tr><td style="font-size:9px;color:var(--text-2)">${s.schedule_id}</td><td>${esc(s.name)}</td><td style="color:var(--amber)">${s.cron_expression}</td><td>${s.timezone}</td><td><span class="tag" style="background:${sc}20;color:${sc}">${s.status}</span></td><td style="font-size:10px">${nextRun}</td><td>${s.run_count}</td><td>${err}</td><td style="white-space:nowrap">${pauseBtn} <button class="btn" style="font-size:9px;padding:3px 7px;color:var(--red)" onclick="deleteSchedule('${s.schedule_id}')">删除</button></td></tr>`;
+    });
+    c.innerHTML = h + '</tbody></table>';
+  } catch(e) { c.innerHTML = '<div class="empty-state">加载失败: ' + esc(e.message) + '</div>'; }
+}
+
+async function createSchedule() {
+  const name = document.getElementById('schName').value.trim();
+  const cron = document.getElementById('schCron').value.trim();
+  const desc = document.getElementById('schDesc').value.trim();
+  const tz = document.getElementById('schTz').value.trim();
+  if (!name || !cron) { alert('请填写任务名称和 Cron 表达式'); return; }
+  try {
+    const s = await api('/schedules', { method:'POST', body:{ name, description:desc||name, cron_expression:cron, timezone:tz||'Asia/Shanghai' } });
+    alert(`创建成功\nID: ${s.schedule_id}\n下次执行: ${s.next_run_at || '待计算'}`);
+    document.getElementById('schName').value = '';
+    document.getElementById('schCron').value = '';
+    document.getElementById('schDesc').value = '';
+    loadSchedules();
+  } catch(e) { alert('创建失败: ' + e.message); }
+}
+
+async function pauseSchedule(id) {
+  if (!confirm('确定暂停该调度任务？')) return;
+  try { await api('/schedules/'+id+'/pause', { method:'POST' }); loadSchedules(); } catch(e) { alert('操作失败: ' + e.message); }
+}
+
+async function resumeSchedule(id) {
+  try { await api('/schedules/'+id+'/resume', { method:'POST' }); loadSchedules(); } catch(e) { alert('操作失败: ' + e.message); }
+}
+
+async function deleteSchedule(id) {
+  if (!confirm('确定删除该调度任务？此操作不可恢复。')) return;
+  try { await api('/schedules/'+id, { method:'DELETE' }); loadSchedules(); } catch(e) { alert('操作失败: ' + e.message); }
+}
+
+// ── Settings ──
+async function loadSettings() {
+  // Scheduler: try to detect from API availability
+  try {
+    await api('/schedules');
+    const el = document.getElementById('settingsSchedulerEnabled');
+    el.textContent = '已启用'; el.style.color = 'var(--green)';
+    document.getElementById('settingsSchedulerInterval').textContent = '60s (默认)';
+  } catch {
+    const el = document.getElementById('settingsSchedulerEnabled');
+    el.textContent = '未启用'; el.style.color = 'var(--red)';
+  }
+  // Langfuse: check localStorage config or infer from health
+  try {
+    const lf = JSON.parse(localStorage.getItem('langfuseCfg') || '{}');
+    document.getElementById('settingsLangfuseEnabled').textContent = lf.enabled ? '已启用' : '未启用';
+    document.getElementById('settingsLangfuseEnabled').style.color = lf.enabled ? 'var(--green)' : 'var(--text-2)';
+    document.getElementById('settingsLangfuseHost').textContent = lf.host || '-';
+    document.getElementById('settingsLangfuseKey').textContent = lf.publicKey ? lf.publicKey.slice(0,12)+'...' : '-';
+  } catch {
+    document.getElementById('settingsLangfuseEnabled').textContent = '未配置';
+    document.getElementById('settingsLangfuseEnabled').style.color = 'var(--text-2)';
+  }
 }
 
 function esc(s){if(!s)return'';const d=document.createElement('div');d.textContent=s;return d.innerHTML;}

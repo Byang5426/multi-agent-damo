@@ -26,6 +26,7 @@ class WorkflowState(TypedDict):
 
     # Results
     final_response: str
+    schedule_id: Optional[str]  # Set by scheduled_handler
     trace_logs: Annotated[list, lambda x, y: x + y]  # Accumulate traces
 
     # Error handling

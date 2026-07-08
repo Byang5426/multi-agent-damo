@@ -163,6 +163,7 @@ async def scheduled_handler(state: WorkflowState) -> dict[str, Any]:
                 f"  下次执行: {schedule.next_run_at or '待计算'}\n\n"
                 f"可通过 GET /api/v1/schedules 查看所有调度任务。"
             ),
+            "schedule_id": schedule.schedule_id,
             "trace_logs": [],
         }
 

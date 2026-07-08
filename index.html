@@ -292,6 +292,9 @@ async function sendChat() {
     if (data.tasks && data.tasks.length > 0) resp += '\n\n任务列表:\n' + data.tasks.map(t => `  [${t.status}] ${t.title} → ${t.assigned_worker || '未分配'}`).join('\n');
     if (data.error) resp += `\n\n错误: ${data.error}`;
     addMsg('assistant', resp);
+    if (data.schedule_id) {
+      addMsg('system', '⏱ 定时任务已创建\n  调度ID: ' + data.schedule_id + '\n  回复内容已包含调度任务详情，可在管理控制台查看所有任务。');
+    }
   } catch (e) { addMsg('assistant', '请求失败: ' + e.message); }
   finally { btn.disabled = false; btn.textContent = '发送'; }
 }

@@ -18,6 +18,7 @@ class ChatResponse(BaseModel):
 
     response: str = Field(description="任务执行结果摘要")
     project_id: Optional[str] = Field(default=None, description="项目ID（仅项目型任务）")
+    schedule_id: Optional[str] = Field(default=None, description="调度任务ID（仅定时任务）")
     tasks: list[dict] = Field(default_factory=list, description="任务列表")
     trace_count: int = Field(default=0, description="Trace日志条数")
     error: Optional[str] = Field(default=None, description="错误信息")
