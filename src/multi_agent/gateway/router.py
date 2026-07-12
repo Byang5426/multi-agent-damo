@@ -1,5 +1,6 @@
 """Gateway 路由器：意图分类、注入检测与请求路由。"""
 
+import json
 import logging
 import re
 from typing import Optional
@@ -76,21 +77,54 @@ class GatewayRouter:
                 reason="Potential prompt injection detected",
             )
 
-        try:
-            routing_prompt = await load_prompt("gateway_routing", ROUTING_SYSTEM_PROMPT)
-            response = await self._llm.ainvoke(
-                [
-                    SystemMessage(content=routing_prompt),
-                    HumanMessage(content=user_input),
-                ],
-                response_format={"type": "json_object"},
-            )
-            data = RouteDecision.model_validate_json(response.content)
-            return data
-        except Exception as e:
-            logger.error("Router LLM call failed: %s, falling back to 'instant'", e)
-            return RouteDecision(
-                route="instant",
-                reason=f"Router fallback due to error: {e}",
-                suggested_worker="analyzer",
-            )
+        routing_prompt = await load_prompt("gateway_routing", ROUTING_SYSTEM_PROMPT)
+        messages = [
+            SystemMessage(content=routing_prompt),
+            HumanMessage(content=user_input),
+        ]
+
+        # 最多重试一次，确保 LLM 分类成功
+        last_error = None
+        for attempt in range(2):
+            try:
+                response = await self._llm.ainvoke(
+                    messages,
+                    response_format={"type": "json_object"},
+                )
+                data = _parse_route_response(response.content)
+                return data
+            except Exception as e:
+                last_error = e
+                logger.warning("Router 解析失败 (attempt %d): %s", attempt + 1, e)
+
+        # AI 分类全部失败，降级为 instant + analyzer
+        logger.error("Router LLM call failed after retries: %s", last_error)
+        return RouteDecision(
+            route="instant",
+            reason=f"Router fallback due to error: {last_error}",
+            suggested_worker="analyzer",
+        )
+
+
+def _parse_route_response(content: str) -> RouteDecision:
+    """从 LLM 输出中解析 RouteDecision，兼容多种非标准格式。"""
+    text = content.strip()
+
+    # 1. 直接尝试解析
+    if text.startswith("{"):
+        return RouteDecision.model_validate_json(text)
+
+    # 2. LLM 返回了数组，取第一个对象元素
+    if text.startswith("["):
+        arr = json.loads(text)
+        for item in arr:
+            if isinstance(item, dict):
+                return RouteDecision.model_validate(item)
+        raise ValueError(f"数组中无有效对象: {text[:80]}")
+
+    # 3. 文本中嵌入 JSON，用正则提取第一个 {...}
+    match = re.search(r"\{[^{}]+\}", text, re.DOTALL)
+    if match:
+        return RouteDecision.model_validate_json(match.group())
+
+    raise ValueError(f"无法从 LLM 输出中提取 JSON: {text[:120]}")
