@@ -297,8 +297,12 @@ function navigate() {
 window.addEventListener('hashchange', navigate);
 
 // ── Chat ──
-document.getElementById('chatInput').addEventListener('keydown', e => {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
+let _isComposing = false; // 输入法组合状态标记
+const chatInput = document.getElementById('chatInput');
+chatInput.addEventListener('compositionstart', () => { _isComposing = true; });
+chatInput.addEventListener('compositionend', () => { _isComposing = false; });
+chatInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey && !_isComposing) { e.preventDefault(); sendChat(); }
 });
 
 function addMsg(role, text) {
