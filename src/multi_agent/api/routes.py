@@ -1,9 +1,13 @@
 """多Agent系统 API 路由定义。"""
 
+import asyncio
+import json
 import logging
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import StreamingResponse
 
 from multi_agent.api.schemas import (
     ChatRequest,
@@ -15,7 +19,8 @@ from multi_agent.api.schemas import (
     ScheduleResponse,
     TaskResponse,
 )
-from multi_agent.graph.workflow import run_workflow
+from multi_agent.config import settings as app_settings
+from multi_agent.graph.workflow import run_workflow, run_workflow_streaming
 from multi_agent.models.task import TaskStatus
 
 logger = logging.getLogger(__name__)
@@ -65,6 +70,103 @@ async def chat(request: Request, body: ChatRequest):
     except Exception as e:
         logger.error("聊天接口异常: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="服务内部错误，请稍后重试")
+
+
+@router.post(
+    "/chat/stream",
+    summary="流式对话（SSE）",
+    description="与 /chat 相同，但以 Server-Sent Events 流式输出执行流程。",
+)
+async def chat_stream(request: Request, body: ChatRequest):
+    """流式对话端点：通过 SSE 实时推送工作流执行事件。"""
+    store = request.app.state.store
+    event_queue: asyncio.Queue = asyncio.Queue()
+
+    def _json_safe(obj):
+        """JSON 序列化辅助：将 datetime 等不可序列化对象转为字符串。"""
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        return str(obj)
+
+    async def event_generator():
+        # 在后台任务中运行工作流
+        workflow_task = asyncio.create_task(
+            run_workflow_streaming(
+                user_input=body.message,
+                tenant_id=body.tenant_id,
+                user_id=body.user_id,
+                request_id=request.state.request_id,
+                store=store,
+                event_queue=event_queue,
+            )
+        )
+
+        # 消费事件队列，逐条推送 SSE
+        while True:
+            event = await event_queue.get()
+            if event is None:  # 哨兵值，工作流结束
+                break
+            yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+
+        # 等待工作流完成并推送最终结果
+        try:
+            result = await workflow_task
+            # 清理内部字段
+            result.pop("_store", None)
+            result.pop("_event_queue", None)
+            yield f"data: {json.dumps({'type': 'done', 'result': result}, ensure_ascii=False, default=_json_safe)}\n\n"
+        except Exception as e:
+            logger.error("流式工作流异常: %s", e, exc_info=True)
+            yield f"data: {json.dumps({'type': 'error', 'error': str(e)}, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",  # 禁用 nginx 缓冲
+        },
+    )
+
+
+@router.post(
+    "/test-llm",
+    summary="测试 LLM 连接",
+    description="向当前配置的 LLM 发送一条简单消息，验证 API Key、Base URL 和模型是否可用。",
+)
+async def test_llm_connection():
+    """测试 LLM 连接：发送一条简单消息验证配置是否正确。"""
+    from langchain_core.messages import HumanMessage
+    from langchain_openai import ChatOpenAI
+    import time
+
+    start = time.time()
+    try:
+        llm = ChatOpenAI(
+            model=app_settings.openai_api_model,
+            api_key=app_settings.openai_api_key,
+            base_url=app_settings.openai_base_url or None,
+            temperature=0,
+            max_tokens=32,
+        )
+        response = await llm.ainvoke([HumanMessage(content="Say 'ok' in one word.")])
+        elapsed = round((time.time() - start) * 1000)
+        return {
+            "success": True,
+            "model": app_settings.openai_api_model,
+            "base_url": app_settings.openai_base_url or "https://api.openai.com/v1",
+            "response": str(response.content)[:100],
+            "latency_ms": elapsed,
+        }
+    except Exception as e:
+        elapsed = round((time.time() - start) * 1000)
+        return {
+            "success": False,
+            "model": app_settings.openai_api_model,
+            "base_url": app_settings.openai_base_url or "https://api.openai.com/v1",
+            "error": str(e)[:200],
+            "latency_ms": elapsed,
+        }
 
 
 @router.get(
@@ -251,6 +353,31 @@ async def update_prompt(request: Request, prompt_id: str, body: PromptUpdateRequ
         "message": f"Prompt '{prompt_id}' 已更新到版本 v{updated.version}",
         "prompt": updated.model_dump(),
     }
+
+
+# ── 仪表盘与配置 ──
+
+
+@router.get(
+    "/stats",
+    summary="仪表盘统计",
+    description="返回项目总数、任务总数、按状态分组任务数、待人工处理数。",
+)
+async def get_stats(request: Request):
+    """仪表盘统计数据。"""
+    store = request.app.state.store
+    return await store.get_stats()
+
+
+@router.get(
+    "/config",
+    summary="读取运行配置",
+    description="返回当前运行时配置（屏蔽敏感字段）。",
+)
+async def get_config(request: Request):
+    """读取运行配置。"""
+    store = request.app.state.store
+    return await store.get_config()
 
 
 # ── 定时任务管理 ──

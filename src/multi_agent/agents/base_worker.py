@@ -1,4 +1,4 @@
-"""Base worker agent with common interface and output schema."""
+"""基础 Worker 代理：定义通用接口、LLM 调用和输出规范。"""
 
 import logging
 import time
@@ -19,20 +19,20 @@ logger = logging.getLogger(__name__)
 
 
 class WorkerOutput(BaseModel):
-    """Standardized output from any Worker agent."""
+    """任何 Worker 代理的结构化输出模型。"""
 
-    status: str = Field(description="success or error")
-    summary: str = Field(description="Brief summary of the result")
+    status: str = Field(description="执行状态: success 或 error")
+    summary: str = Field(description="结果的一句话摘要")
     artifacts: list[Artifact] = Field(default_factory=list)
-    error: Optional[str] = Field(default=None, description="Error message if failed")
+    error: Optional[str] = Field(default=None, description="失败时的错误信息")
 
 
 class BaseWorker(ABC):
-    """Base class for all Worker agents."""
+    """所有 Worker 代理的基类。"""
 
     name: str = "base_worker"
     system_prompt: str = "You are a helpful assistant."
-    prompt_id: str = ""  # DB prompt identifier; if set, loaded at runtime
+    prompt_id: str = ""  # 数据库 Prompt 标识符，设置后在运行时从 DB 加载
 
     def __init__(self):
         self._llm = ChatOpenAI(
@@ -49,22 +49,22 @@ class BaseWorker(ABC):
         context: Optional[dict[str, Any]] = None,
         rejection_reason: Optional[str] = None,
     ) -> tuple[WorkerOutput, TraceEntry]:
-        """Execute a task and return structured output with trace.
+        """执行任务，返回结构化输出和追踪记录。
 
         Args:
-            task_id: The task identifier.
-            description: Task description from PM.
-            context: Additional context (previous artifacts, etc.).
-            rejection_reason: If this is a retry, the reason for rejection.
+            task_id: 任务唯一标识。
+            description: PM 分配的任务描述。
+            context: 额外上下文（前序 Worker 的产物等）。
+            rejection_reason: 如果是重试，上次被拒绝的原因。
         """
         trace_id = str(uuid.uuid4())
         span_id = str(uuid.uuid4())
         start = time.time()
 
         try:
-            # Build the prompt with optional rejection context
+            # 组装用户消息（包含任务描述、上下文和拒绝原因）
             user_msg = self._build_user_message(description, context, rejection_reason)
-            # Load prompt from DB if prompt_id is set, else use class attribute
+            # 如果设置了 prompt_id 则从数据库加载，否则使用类属性默认值
             sys_prompt = await load_prompt(self.prompt_id, self.system_prompt) if self.prompt_id else self.system_prompt
             messages = [
                 SystemMessage(content=sys_prompt),
@@ -74,7 +74,7 @@ class BaseWorker(ABC):
             response = await self._llm.ainvoke(messages)
             elapsed = int((time.time() - start) * 1000)
 
-            # Parse the response into structured output
+            # 将 LLM 响应解析为结构化输出
             output = self._parse_output(response.content)
 
             trace = TraceEntry(
@@ -140,5 +140,5 @@ class BaseWorker(ABC):
 
     @abstractmethod
     def _parse_output(self, raw_content: str) -> WorkerOutput:
-        """Parse LLM response into structured WorkerOutput."""
+        """将 LLM 原始响应解析为结构化的 WorkerOutput。"""
         ...

@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class TraceStore:
-    """Trace CRUD operations."""
+    """Trace 日志的 CRUD 操作。"""
 
     def __init__(self, pool: asyncpg.Pool):
         self._pool = pool

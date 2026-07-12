@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class PromptStore:
-    """Agent Prompt CRUD operations."""
+    """Agent Prompt 的 CRUD 操作。"""
 
     def __init__(self, pool: asyncpg.Pool):
         self._pool = pool

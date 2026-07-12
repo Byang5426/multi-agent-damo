@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class TaskStore:
-    """Task CRUD operations."""
+    """任务 CRUD 操作。"""
 
     def __init__(self, pool: asyncpg.Pool):
         self._pool = pool

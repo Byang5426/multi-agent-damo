@@ -1,4 +1,4 @@
-"""Project model."""
+"""项目数据模型。"""
 
 import enum
 from datetime import datetime, timezone
@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 
 class ProjectStatus(str, enum.Enum):
-    """Project lifecycle states."""
+    """项目生命周期状态。"""
 
     PLANNING = "PLANNING"
     IN_PROGRESS = "IN_PROGRESS"
@@ -17,7 +17,7 @@ class ProjectStatus(str, enum.Enum):
 
 
 class Project(BaseModel):
-    """Project model - a container for multiple tasks."""
+    """项目模型：作为多个任务的容器。"""
 
     project_id: str
     title: str
@@ -30,7 +30,7 @@ class Project(BaseModel):
 
 
 class ProjectCreate(BaseModel):
-    """Request model for creating a project."""
+    """创建项目的请求模型。"""
 
     title: str
     description: str

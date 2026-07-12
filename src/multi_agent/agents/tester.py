@@ -1,4 +1,4 @@
-"""Tester Worker - handles testing and review tasks."""
+"""Tester Worker：负责测试计划、代码审查和质量验证任务。"""
 
 import json
 import logging
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class TesterWorker(BaseWorker):
     name = "tester"
     prompt_id = "tester"
-    system_prompt = TESTER_SYSTEM_PROMPT  # fallback
+    system_prompt = TESTER_SYSTEM_PROMPT  # 回退默认 Prompt
 
     def _parse_output(self, raw_content: str) -> WorkerOutput:
         try:

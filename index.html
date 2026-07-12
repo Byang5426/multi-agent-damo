@@ -102,6 +102,37 @@ body{font-family:var(--font-mono);background:var(--bg-0);color:var(--text-0);min
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
 .animate-in{animation:fadeUp .4s ease both}
+/* ── 执行流程时间线样式 ── */
+.flow-container{margin:8px 0 14px 0;padding:0 0 0 16px;border-left:2px solid var(--border)}
+.flow-step{display:flex;align-items:flex-start;gap:10px;padding:6px 0;position:relative;font-size:11px;line-height:1.5}
+.flow-step::before{content:'';position:absolute;left:-22px;top:11px;width:10px;height:10px;border-radius:50%;border:2px solid var(--bg-0);z-index:1}
+.flow-step.gateway::before{background:var(--amber)}
+.flow-step.worker::before{background:var(--blue)}
+.flow-step.pm_review::before{background:#7a4cc0}
+.flow-step.scheduler::before{background:var(--green)}
+.flow-step.project_init::before{background:var(--amber)}
+.flow-step.failure::before{background:var(--red)}
+.flow-step.finalize::before{background:var(--green)}
+.flow-step.advance::before{background:var(--text-2)}
+.flow-step.blocked::before{background:var(--red)}
+.flow-icon{width:20px;height:20px;border-radius:4px;display:grid;place-items:center;flex-shrink:0;font-size:10px;color:#fff}
+.flow-icon.gateway{background:var(--amber)}
+.flow-icon.worker{background:var(--blue)}
+.flow-icon.pm_review{background:#7a4cc0}
+.flow-icon.scheduler{background:var(--green)}
+.flow-icon.project_init{background:var(--amber)}
+.flow-icon.failure{background:var(--red)}
+.flow-icon.finalize{background:var(--green)}
+.flow-icon.advance{background:var(--text-2)}
+.flow-icon.blocked{background:var(--red)}
+.flow-body{flex:1;min-width:0}
+.flow-label{font-weight:500;color:var(--text-0)}
+.flow-detail{color:var(--text-2);font-size:10px;margin-top:2px;word-break:break-all}
+.flow-time{color:var(--text-3);font-size:9px;flex-shrink:0;min-width:48px;text-align:right}
+.flow-status{font-size:9px;padding:1px 6px;border-radius:3px;font-weight:500;margin-left:6px}
+.flow-status.ok{background:var(--green-dim);color:var(--green)}
+.flow-status.err{background:var(--red-dim);color:var(--red)}
+.flow-status.pending{background:var(--amber-glow);color:var(--amber)}
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.25);backdrop-filter:blur(4px);z-index:1000;display:none;place-items:center}
 .modal-overlay.show{display:grid}
 .modal{background:var(--bg-1);border:1px solid var(--border);border-radius:12px;width:520px;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.12)}
@@ -276,6 +307,112 @@ function addMsg(role, text) {
   div.innerHTML = '<div class="chat-bubble">' + esc(text).replace(/\n/g, '<br>') + '</div>';
   document.getElementById('chatMessages').appendChild(div);
   div.scrollIntoView({ behavior: 'smooth' });
+  return div;
+}
+
+// ── 执行流程渲染 ──
+let _flowContainer = null;
+const _nodeIcons = {
+  gateway: '⑂', worker: '⚙', pm_review: '✓', scheduler: '⏱',
+  project_init: '📂', failure: '✕', finalize: '✓', advance: '→', blocked: '⊘'
+};
+const _nodeLabels = {
+  gateway: 'Gateway', worker: 'Worker', pm_review: 'PM审查',
+  scheduler: '调度器', project_init: '项目拆解', failure: '失败处理',
+  finalize: '项目收尾', advance: '推进任务', blocked: '请求拦截'
+};
+
+function ensureFlowContainer() {
+  if (!_flowContainer) {
+    const wrap = document.createElement('div');
+    wrap.className = 'chat-msg assistant';
+    _flowContainer = document.createElement('div');
+    _flowContainer.className = 'flow-container';
+    wrap.appendChild(_flowContainer);
+    document.getElementById('chatMessages').appendChild(wrap);
+  }
+  return _flowContainer;
+}
+
+function addFlowStep(event) {
+  const container = ensureFlowContainer();
+  const d = event.data || {};
+  const node = d.node || 'unknown';
+  const isStart = event.type === 'node_start';
+  const step = document.createElement('div');
+  step.className = 'flow-step ' + node;
+
+  const icon = document.createElement('div');
+  icon.className = 'flow-icon ' + node;
+  icon.textContent = _nodeIcons[node] || '?';
+
+  const body = document.createElement('div');
+  body.className = 'flow-body';
+
+  const label = document.createElement('div');
+  label.className = 'flow-label';
+  label.textContent = d.label || (_nodeLabels[node] || node);
+
+  // 状态徽章
+  if (!isStart) {
+    if (d.status) {
+      const badge = document.createElement('span');
+      badge.className = 'flow-status ' + (d.status === 'success' || d.approved ? 'ok' : d.status === 'error' || d.approved === false ? 'err' : 'pending');
+      badge.textContent = d.status || (d.approved ? '通过' : '拒绝') || d.action || '';
+      label.appendChild(badge);
+    } else if (d.action) {
+      const badge = document.createElement('span');
+      badge.className = 'flow-status ' + (d.action === 'retry' ? 'pending' : d.action === 'abort' ? 'err' : 'ok');
+      badge.textContent = d.action;
+      label.appendChild(badge);
+    } else if (d.route) {
+      const badge = document.createElement('span');
+      badge.className = 'flow-status ok';
+      badge.textContent = d.route;
+      label.appendChild(badge);
+    }
+  } else {
+    const badge = document.createElement('span');
+    badge.className = 'flow-status pending';
+    badge.textContent = '执行中...';
+    label.appendChild(badge);
+  }
+
+  body.appendChild(label);
+
+  // 详情行
+  const detail = document.createElement('div');
+  detail.className = 'flow-detail';
+  const parts = [];
+  if (isStart) {
+    if (d.worker) parts.push('Worker: ' + d.worker);
+    if (d.task_title) parts.push('任务: ' + d.task_title);
+    if (d.task_index) parts.push(`${d.task_index}/${d.task_total || '?'}`);
+    if (d.reason) parts.push(d.reason);
+  } else {
+    if (d.route) parts.push('路由: ' + d.route);
+    if (d.reason) parts.push('原因: ' + d.reason);
+    if (d.suggested_worker) parts.push('推荐Worker: ' + d.suggested_worker);
+    if (d.summary) parts.push(d.summary.length > 120 ? d.summary.slice(0, 120) + '...' : d.summary);
+    if (d.task_count !== undefined) parts.push('拆解为 ' + d.task_count + ' 个任务');
+    if (d.project_id) parts.push('项目: ' + d.project_id);
+    if (d.schedule_id) parts.push('调度ID: ' + d.schedule_id);
+    if (d.done !== undefined) parts.push(`完成:${d.done} 失败:${d.failed} 待人工:${d.human_pending||0}`);
+  }
+  if (parts.length > 0) detail.textContent = parts.join(' | ');
+  else detail.style.display = 'none';
+  body.appendChild(detail);
+
+  // 时间戳
+  const ts = document.createElement('div');
+  ts.className = 'flow-time';
+  ts.textContent = new Date(event.ts * 1000).toLocaleTimeString('zh-CN', {hour12: false});
+
+  step.appendChild(icon);
+  step.appendChild(body);
+  step.appendChild(ts);
+  container.appendChild(step);
+  step.scrollIntoView({ behavior: 'smooth' });
 }
 
 async function sendChat() {
@@ -285,15 +422,59 @@ async function sendChat() {
   if (!msg) return;
   input.value = ''; btn.disabled = true; btn.innerHTML = '<span class="loading"></span>';
   addMsg('user', msg);
+  _flowContainer = null; // 重置流程容器
+
   try {
-    const data = await api('/chat', { method: 'POST', body: { message: msg, tenant_id: 'default', user_id: 'web-user' } });
-    let resp = data.response || '无响应';
-    if (data.project_id) resp = `[项目 ${data.project_id}]\n${resp}`;
-    if (data.tasks && data.tasks.length > 0) resp += '\n\n任务列表:\n' + data.tasks.map(t => `  [${t.status}] ${t.title} → ${t.assigned_worker || '未分配'}`).join('\n');
-    if (data.error) resp += `\n\n错误: ${data.error}`;
-    addMsg('assistant', resp);
-    if (data.schedule_id) {
-      addMsg('system', '⏱ 定时任务已创建\n  调度ID: ' + data.schedule_id + '\n  回复内容已包含调度任务详情，可在管理控制台查看所有任务。');
+    const res = await fetch(API + '/api/v1/chat/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: msg, tenant_id: 'default', user_id: 'web-user' }),
+    });
+
+    if (!res.ok) throw new Error('HTTP ' + res.status + ': ' + await res.text());
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let finalResult = null;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      // 解析 SSE 事件（每行 "data: {...}\n\n"）
+      const lines = buffer.split('\n\n');
+      buffer = lines.pop(); // 保留未完整的部分
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const event = JSON.parse(line.slice(6));
+          if (event.type === 'node_start' || event.type === 'node_end') {
+            addFlowStep(event);
+          } else if (event.type === 'done') {
+            finalResult = event.result;
+          } else if (event.type === 'error') {
+            addMsg('assistant', '错误: ' + (event.error || '未知错误'));
+          }
+        } catch (parseErr) { /* 忽略解析错误 */ }
+      }
+    }
+
+    // 渲染最终结果
+    if (finalResult) {
+      let resp = finalResult.response || '无响应';
+      if (finalResult.project_id) resp = `[项目 ${finalResult.project_id}]\n${resp}`;
+      if (finalResult.tasks && finalResult.tasks.length > 0) {
+        resp += '\n\n任务列表:\n' + finalResult.tasks.map(t =>
+          `  [${t.status}] ${t.title} → ${t.assigned_worker || '未分配'}`
+        ).join('\n');
+      }
+      if (finalResult.error) resp += `\n\n错误: ${finalResult.error}`;
+      addMsg('assistant', resp);
+      if (finalResult.schedule_id) {
+        addMsg('system', '⏱ 定时任务已创建\n  调度ID: ' + finalResult.schedule_id + '\n  回复内容已包含调度任务详情，可在管理控制台查看所有任务。');
+      }
     }
   } catch (e) { addMsg('assistant', '请求失败: ' + e.message); }
   finally { btn.disabled = false; btn.textContent = '发送'; }

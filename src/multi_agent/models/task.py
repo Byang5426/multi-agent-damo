@@ -1,4 +1,4 @@
-"""Task model with state machine."""
+"""任务模型：包含状态机支持的任务数据结构。"""
 
 import enum
 from datetime import datetime, timezone
@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 
 class TaskStatus(str, enum.Enum):
-    """Task state machine states."""
+    """任务状态机的状态枚举。"""
 
     TODO = "TODO"
     DOING = "DOING"
@@ -20,30 +20,30 @@ class TaskStatus(str, enum.Enum):
 
 
 class AcceptanceCriterion(BaseModel):
-    """Structured acceptance criterion for a task."""
+    """结构化的验收标准。"""
 
-    type: str  # output_exists, output_contains, no_error, human_confirm
+    type: str  # 类型: output_exists, output_contains, no_error, human_confirm
     description: str
-    key: Optional[str] = None  # For output_contains type
+    key: Optional[str] = None  # 用于 output_contains 类型的关键词
 
 
 class Artifact(BaseModel):
-    """Output artifact produced by a Worker."""
+    """Worker 产出的产物。"""
 
-    artifact_type: str  # code, doc, test_report, analysis
-    content: str  # The actual content
-    url: Optional[str] = None  # Optional external storage reference
+    artifact_type: str  # 类型: code, doc, test_report, analysis
+    content: str        # 产物内容
+    url: Optional[str] = None  # 可选的外部存储引用
 
 
 class Task(BaseModel):
-    """Core task model with state machine support."""
+    """核心任务模型，支持状态机转换。"""
 
     task_id: str
     project_id: str
     title: str
     description: str
     status: TaskStatus = TaskStatus.TODO
-    assigned_worker: Optional[str] = None  # Worker agent name
+    assigned_worker: Optional[str] = None  # 分配的 Worker 代理名称
     retry_count: int = 0
     max_retries: int = 3
     last_error: Optional[str] = None
@@ -56,7 +56,7 @@ class Task(BaseModel):
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_by: str = "system"
 
-    # Valid state transitions
+    # 合法的状态转换表
     VALID_TRANSITIONS: dict[TaskStatus, set[TaskStatus]] = {
         TaskStatus.TODO: {TaskStatus.DOING, TaskStatus.FAILED},
         TaskStatus.DOING: {
@@ -71,17 +71,17 @@ class Task(BaseModel):
             TaskStatus.TODO,  # rejected, retry
             TaskStatus.FAILED,
         },
-        TaskStatus.DONE: set(),  # terminal
+        TaskStatus.DONE: set(),  # 终态
         TaskStatus.FAILED: {TaskStatus.TODO, TaskStatus.HUMAN_PENDING},
         TaskStatus.HUMAN_PENDING: {TaskStatus.TODO, TaskStatus.DONE},
     }
 
     def can_transition(self, new_status: TaskStatus) -> bool:
-        """Check if a state transition is valid."""
+        """检查状态转换是否合法。"""
         return new_status in self.VALID_TRANSITIONS.get(self.status, set())
 
     def transition(self, new_status: TaskStatus, updated_by: str = "system") -> None:
-        """Perform a state transition. Raises ValueError if invalid."""
+        """执行状态转换，非法转换时抛出 ValueError。"""
         if not self.can_transition(new_status):
             raise ValueError(
                 f"Invalid transition: {self.status.value} -> {new_status.value}"
@@ -92,7 +92,7 @@ class Task(BaseModel):
 
 
 class TaskCreate(BaseModel):
-    """Request model for creating a task."""
+    """创建任务的请求模型。"""
 
     title: str
     description: str
@@ -102,7 +102,7 @@ class TaskCreate(BaseModel):
 
 
 class TaskUpdate(BaseModel):
-    """Request model for updating a task (e.g., human intervention)."""
+    """更新任务的请求模型（如人工介入）。"""
 
     status: Optional[TaskStatus] = None
     output_summary: Optional[str] = None

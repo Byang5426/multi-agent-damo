@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class ScheduleStore:
-    """Schedule CRUD operations backed by asyncpg."""
+    """调度任务的 CRUD 操作（基于 asyncpg）。"""
 
     def __init__(self, pool: asyncpg.Pool) -> None:
         self._pool = pool

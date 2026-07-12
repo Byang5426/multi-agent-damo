@@ -1,4 +1,4 @@
-"""PM Agent - project management: task decomposition, review, and failure handling."""
+"""项目经理（PM Agent）：负责任务拆解、验收评审和失败处理。"""
 
 import json
 import logging
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 class DecomposedTask(BaseModel):
-    """A single task produced by PM decomposition."""
+    """ PM 拆解产出的单个任务模型。"""
 
     title: str
     description: str
@@ -32,14 +32,14 @@ class DecomposedTask(BaseModel):
 
 
 class DecompositionResult(BaseModel):
-    """Result of PM task decomposition."""
+    """PM 任务拆解的完整结果。"""
 
     project_title: str
     tasks: list[DecomposedTask]
 
 
 class ReviewDecision(BaseModel):
-    """PM's review decision for a worker output."""
+    """PM 对 Worker 输出的验收决策。"""
 
     approved: bool
     reason: str
@@ -47,14 +47,14 @@ class ReviewDecision(BaseModel):
 
 
 class FailureDecision(BaseModel):
-    """PM's decision on how to handle a failure."""
+    """PM 对任务失败的处理决策。"""
 
     action: str = Field(description="retry, escalate_to_human, or abort")
     reason: str
 
 
 class PMAgent:
-    """Project Manager agent for task decomposition, review, and failure handling."""
+    """项目经理代理：负责任务拆解、验收评审和失败处理。"""
 
     def __init__(self):
         self._llm = ChatOpenAI(
@@ -67,10 +67,10 @@ class PMAgent:
     async def decompose(
         self, project_description: str, project_id: str
     ) -> tuple[list[Task], TraceEntry]:
-        """Decompose a project into tasks.
+        """将项目拆解为多个子任务。
 
         Returns:
-            Tuple of (list of Task objects, trace entry).
+            (任务列表, 追踪记录) 元组。
         """
         trace_id = str(uuid.uuid4())
         span_id = str(uuid.uuid4())
@@ -127,7 +127,7 @@ class PMAgent:
                 latency_ms=elapsed,
                 failure_reason=str(e),
             )
-            # Return empty task list on failure; caller should handle this
+            # 拆解失败时返回空任务列表，由调用方处理
             return [], trace
 
     async def review(
@@ -136,10 +136,10 @@ class PMAgent:
         worker_summary: str,
         artifact_contents: list[str],
     ) -> tuple[ReviewDecision, TraceEntry]:
-        """Review a worker's output against acceptance criteria.
+        """根据验收标准审查 Worker 的输出。
 
         Returns:
-            Tuple of (ReviewDecision, trace entry).
+            (验收决策, 追踪记录) 元组。
         """
         trace_id = str(uuid.uuid4())
         span_id = str(uuid.uuid4())
@@ -184,7 +184,7 @@ class PMAgent:
         except Exception as e:
             elapsed = int((time.time() - start) * 1000)
             logger.error("PM review failed: %s", e)
-            # Default to rejection on review error
+            # 审查过程出错时默认拒绝
             decision = ReviewDecision(
                 approved=False,
                 reason=f"Review process error: {e}",
@@ -205,10 +205,10 @@ class PMAgent:
         task: Task,
         error: str,
     ) -> tuple[FailureDecision, TraceEntry]:
-        """Decide how to handle a task failure.
+        """决定如何处理任务失败。
 
         Returns:
-            Tuple of (FailureDecision, trace entry).
+            (失败处理决策, 追踪记录) 元组。
         """
         trace_id = str(uuid.uuid4())
         span_id = str(uuid.uuid4())
@@ -246,7 +246,7 @@ class PMAgent:
         except Exception as e:
             elapsed = int((time.time() - start) * 1000)
             logger.error("PM failure handling failed: %s", e)
-            # Default: escalate to human on PM error
+            # PM 评估失败时默认转交人工
             decision = FailureDecision(
                 action="escalate_to_human",
                 reason=f"PM could not evaluate failure: {e}",

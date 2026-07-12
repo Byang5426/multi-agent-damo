@@ -1,4 +1,4 @@
-"""Message and trace models for agent communication and tracing."""
+"""消息与追踪模型：Agent 间通信和链路追踪的数据结构。"""
 
 import enum
 from datetime import datetime, timezone
@@ -15,17 +15,17 @@ class MessageRole(str, enum.Enum):
 
 
 class Message(BaseModel):
-    """A message in the agent conversation."""
+    """Agent 对话中的单条消息。"""
 
     role: MessageRole
     content: str
-    name: Optional[str] = None  # Agent name that produced this message
+    name: Optional[str] = None  # 产生此消息的 Agent 名称
     metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class TraceEntry(BaseModel):
-    """A single trace log entry for observability."""
+    """单条追踪日志记录，用于可观测性。"""
 
     trace_id: str
     span_id: str

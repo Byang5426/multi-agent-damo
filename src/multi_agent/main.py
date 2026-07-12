@@ -1,4 +1,4 @@
-"""多Agent系统 FastAPI 应用入口。"""
+"""FastAPI 应用入口：初始化数据库、调度器、中间件，并挂载路由。"""
 
 import logging
 import uuid
@@ -7,7 +7,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-# 加载 .env 到 os.environ，确保 LangSmith 等第三方库能读取到环境变量
+# 加载 .env 到 os.environ，确保 LangSmith、OpenAI 等第三方库能读取到环境变量
 load_dotenv()
 
 import uvicorn
@@ -28,29 +28,33 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# 全局持久化存储实例（单例）
+# 全局持久化存储实例（单例，所有 API 路由通过 request.app.state.store 访问）
 store = PgStore(
     dsn=settings.pg_dsn,
     min_connections=settings.pg_min_connections,
     max_connections=settings.pg_max_connections,
 )
 
-# 全局调度器实例（单例）
+# 全局调度器实例（单例，随应用生命周期启动/停止）
 schedule_manager = ScheduleManager(store)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """应用生命周期管理：启动时初始化数据库和调度器，关闭时释放资源。"""
+    """应用生命周期管理。
+
+    启动时：初始化数据库连接池 + 种子填充默认 Prompt + 启动定时调度器。
+    关闭时：停止调度器 + 关闭数据库连接池。
+    """
     await store.initialize()
     logger.info("Database initialized (PostgreSQL)")
 
-    # 初始化 Prompt 加载器，并种子填充默认 Prompt
+    # 初始化 Prompt 加载器（依赖注入式），并种子填充默认 Prompt 到数据库
     init_prompt_loader(store)
     seeded = await store.seed_prompts(DEFAULT_PROMPTS)
     logger.info("Seeded %d default prompts", seeded)
 
-    # 启动定时调度器
+    # 启动定时调度器（轮询 PostgreSQL 中的到期任务）
     await schedule_manager.start()
 
     yield
@@ -93,7 +97,7 @@ async def request_id_middleware(request: Request, call_next):
 app.include_router(router, prefix="/api/v1")
 app.state.store = store
 
-# 项目根目录（用于静态文件）
+# 项目根目录（用于提供静态文件服务：admin.html、index.html）
 ROOT_DIR = Path(__file__).parent.parent.parent
 
 

@@ -1,11 +1,11 @@
-"""Agents package."""
+"""Agent 包：提供所有 Worker 和 PM Agent 的注册与访问。"""
 
 from multi_agent.agents.analyzer import AnalyzerWorker
 from multi_agent.agents.base_worker import BaseWorker, WorkerOutput
 from multi_agent.agents.coder import CoderWorker
 from multi_agent.agents.tester import TesterWorker
 
-# Lazy worker registry: name -> class (instantiated on first use)
+# 懒加载 Worker 注册表：name -> 类（首次使用时实例化）
 _WORKER_CLASSES: dict[str, type[BaseWorker]] = {
     "analyzer": AnalyzerWorker,
     "coder": CoderWorker,
@@ -16,7 +16,7 @@ _WORKER_INSTANCES: dict[str, BaseWorker] = {}
 
 
 def get_worker(name: str) -> BaseWorker:
-    """Get a worker agent by name (lazy initialization)."""
+    """根据名称获取 Worker 实例（懒初始化）。"""
     if name not in _WORKER_CLASSES:
         raise ValueError(
             f"Unknown worker: {name}. Available: {list(_WORKER_CLASSES.keys())}"
@@ -26,7 +26,7 @@ def get_worker(name: str) -> BaseWorker:
     return _WORKER_INSTANCES[name]
 
 
-# Worker registry: name -> class (read-only reference to _WORKER_CLASSES)
+# Worker 注册表：name -> 类（只读引用）
 WORKER_REGISTRY: dict[str, type[BaseWorker]] = _WORKER_CLASSES
 
 

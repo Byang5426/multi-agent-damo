@@ -1,17 +1,17 @@
-"""Configuration management via environment variables."""
+"""基于 pydantic-settings 的环境变量配置管理。"""
 
 from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    """Application settings loaded from environment variables."""
+    """应用配置，从环境变量加载。"""
 
-    # LLM API
-    openai_api_key: str = ""
-    openai_base_url: str = ""
-    openai_api_model: str = "gpt-4o"  # Strong model for PM/Worker
+    # LLM API 配置
+    openai_api_key: str = ""           # OpenAI / OpenRouter API 密钥
+    openai_base_url: str = ""          # API 基础地址（OpenRouter: https://openrouter.ai/api/v1）
+    openai_api_model: str = "gpt-4o"  # 主力模型（PM/Worker 使用）
 
-    # Gateway uses a lighter model for routing
+    # Gateway 路由使用轻量模型
     gateway_model: str = "gpt-4o-mini"
 
     # PostgreSQL
@@ -23,16 +23,16 @@ class Settings(BaseSettings):
     pg_min_connections: int = 2
     pg_max_connections: int = 10
 
-    # Server
+    # 服务配置
     host: str = "0.0.0.0"
     port: int = 8000
     debug: bool = False
-    allowed_origins: str = "*"  # 逗号分隔的允许来源，如 "http://localhost:3000,https://example.com"
+    allowed_origins: str = "*"  # CORS 允许的来源，逗号分隔
 
-    # Agent limits
-    max_retries_per_task: int = 3
-    max_project_tasks: int = 20
-    max_tokens_per_request: int = 4096
+    # Agent 执行限制
+    max_retries_per_task: int = 3      # 单任务最大重试次数
+    max_project_tasks: int = 20        # 单项目最大任务数
+    max_tokens_per_request: int = 4096 # 单次请求最大 Token 数
 
     # Langfuse Trace（可选，未配置时仅保留 PostgreSQL 本地备份）
     langfuse_public_key: str = ""
@@ -40,9 +40,9 @@ class Settings(BaseSettings):
     langfuse_host: str = "https://cloud.langfuse.com"
     langfuse_enabled: bool = False  # 当 public_key 和 secret_key 均非空时自动启用
 
-    # Scheduler（定时任务调度）
-    scheduler_enabled: bool = True
-    scheduler_poll_interval: int = 30  # 轮询间隔（秒）
+    # Scheduler（定时任务调度器）
+    scheduler_enabled: bool = True          # 是否启用调度器
+    scheduler_poll_interval: int = 30       # 轮询间隔（秒）
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 

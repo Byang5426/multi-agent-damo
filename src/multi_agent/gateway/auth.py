@@ -1,4 +1,4 @@
-"""Basic authentication and tenant isolation.
+"""基础认证与租户隔离。
 
 TODO: 当前未接入路由依赖注入。后续需将 extract_context 作为 FastAPI
 Depends() 集成到 API 路由中，实现真正的认证与租户隔离。
@@ -10,7 +10,7 @@ from fastapi import Header, HTTPException
 
 
 class RequestContext:
-    """Carries identity and isolation context through the request."""
+    """承载请求的身份信息和租户隔离上下文。"""
 
     def __init__(
         self,
@@ -31,10 +31,10 @@ def extract_context(
     x_user_id: Optional[str] = Header(None),
     x_thread_id: Optional[str] = Header(None),
 ) -> RequestContext:
-    """Extract request context from headers.
+    """从 HTTP Header 提取请求上下文。
 
-    In production, this would validate JWT tokens and enforce auth.
-    For MVP, we accept header-based identity with defaults.
+    生产环境中应验证 JWT Token 并强制鉴权。
+    MVP 阶段接受基于 Header 的身份信息，并提供默认值。
     """
     tenant_id = x_tenant_id or "default"
     user_id = x_user_id or "anonymous"

@@ -1,1 +1,1 @@
-"""Default templates and seed data."""
+"""默认模板与种子数据。"""

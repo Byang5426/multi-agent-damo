@@ -255,7 +255,7 @@ body{font-family:var(--font-mono);background:var(--bg-0);color:var(--text-0);min
       </div>
       <!-- LLM -->
       <div class="page" id="page-llm">
-        <div class="panel"><div class="panel-header"><div class="panel-title"><span class="dot" style="background:var(--blue)"></span>LLM API 配置</div><button class="btn">测试连接</button></div>
+        <div class="panel"><div class="panel-header"><div class="panel-title"><span class="dot" style="background:var(--blue)"></span>LLM API 配置</div><div style="display:flex;gap:6px"><button class="btn" onclick="testLlmConnection()">测试连接</button><button class="btn btn-primary" onclick="saveLlmConfig()">保存</button></div></div>
           <div class="panel-body"><div class="form-grid">
             <div class="form-group full"><label class="form-label">API Key</label><input class="form-input" type="password" value="sk-xxxxxxxx" placeholder="输入 API Key"><div class="form-hint">支持 OpenAI 及兼容接口</div></div>
             <div class="form-group"><label class="form-label">API Base URL</label><input class="form-input" placeholder="https://api.openai.com/v1"></div>
@@ -267,7 +267,7 @@ body{font-family:var(--font-mono);background:var(--bg-0);color:var(--text-0);min
       </div>
       <!-- Gateway -->
       <div class="page" id="page-gateway">
-        <div class="panel"><div class="panel-header"><div class="panel-title"><span class="dot" style="background:var(--amber)"></span>路由规则</div></div>
+        <div class="panel"><div class="panel-header"><div class="panel-title"><span class="dot" style="background:var(--amber)"></span>路由规则</div><button class="btn btn-primary" onclick="saveGatewayConfig()">保存</button></div>
           <div class="panel-body"><div class="form-grid">
             <div class="form-group"><label class="form-label">默认策略</label><select class="form-input form-select"><option>不确定时偏向 instant</option><option>不确定时偏向 project</option></select></div>
             <div class="form-group"><label class="form-label">Temperature</label><input class="form-input" type="number" value="0" step="0.1"></div>
@@ -405,6 +405,8 @@ function navigate() {
   if (id==='prompts') loadPrompts();
   if (id==='schedules') loadSchedules();
   if (id==='settings') loadSettings();
+  if (id==='llm') loadLlmConfig();
+  if (id==='gateway') loadGatewayConfig();
 }
 window.addEventListener('hashchange', navigate);
 
@@ -415,6 +417,24 @@ async function loadDashboard() {
   document.getElementById('agentStatusList').innerHTML = agents.map((a,i)=>
     `<div class="detail-row"><span class="detail-label">${a}</span><span class="detail-value" style="color:var(--green)">${models[i]} · 在线</span></div>`
   ).join('');
+  // Load stats
+  try {
+    const s = await api('/stats');
+    document.getElementById('sProj').textContent = s.project_count;
+    document.getElementById('sProjSub').textContent = '个活跃项目';
+    const done = s.task_by_status['DONE'] || 0;
+    document.getElementById('sDone').textContent = done;
+    document.getElementById('sDoneSub').textContent = `已完成 / ${s.task_total} 总任务`;
+    document.getElementById('sTotal').textContent = s.task_total;
+    document.getElementById('sTotalSub').textContent = `DOING:${s.task_by_status['DOING']||0} TODO:${s.task_by_status['TODO']||0}`;
+    document.getElementById('sHuman').textContent = s.human_pending_count;
+    document.getElementById('sHumanSub').textContent = s.human_pending_count > 0 ? '需要人工介入' : '暂无待处理';
+  } catch(e) {
+    document.getElementById('sProjSub').textContent = '加载失败';
+    document.getElementById('sDoneSub').textContent = '加载失败';
+    document.getElementById('sTotalSub').textContent = '加载失败';
+    document.getElementById('sHumanSub').textContent = '加载失败';
+  }
   // Detect scheduler status
   try {
     const schedules = await api('/schedules');
@@ -480,10 +500,13 @@ async function adminQueryProject() {
   c.innerHTML = '<div class="empty-state"><span class="loading"></span> 加载中...</div>';
   try {
     const data = await api('/projects/' + encodeURIComponent(pid));
+    // Show project info header
+    const statusColor = { DOING:'var(--blue)', DONE:'var(--green)', PAUSED:'var(--amber)', FAILED:'var(--red)' };
+    let header = `<div class="panel" style="margin-bottom:16px"><div class="panel-header"><div class="panel-title"><span class="dot" style="background:${statusColor[data.status]||'var(--text-2)'}"></span>${esc(data.title)}</div><span class="tag" style="background:${statusColor[data.status]||'var(--text-2)'}20;color:${statusColor[data.status]||'var(--text-2)'}">${data.status}</span></div><div class="panel-body" style="font-size:11px;color:var(--text-1)">${esc(data.description||'无描述')} &middot; 项目ID: <code style="color:var(--amber)">${data.project_id}</code></div></div>`;
     const cols = { TODO:[], DOING:[], REVIEW:[], DONE:[], HUMAN_PENDING:[] };
     (data.tasks||[]).forEach(t=>{ if(cols[t.status]) cols[t.status].push(t); });
     const colors = { TODO:'var(--text-2)', DOING:'var(--blue)', REVIEW:'var(--amber)', DONE:'var(--green)', HUMAN_PENDING:'var(--red)' };
-    let h = '<div class="kanban">';
+    let h = header + '<div class="kanban">';
     for (const [s,tasks] of Object.entries(cols)) {
       h += `<div class="kanban-col"><div class="kanban-col-header"><div class="kanban-col-title"><span style="color:${colors[s]}">●</span> ${s}</div><span class="kanban-count">${tasks.length}</span></div>`;
       tasks.forEach(t=>{
@@ -491,12 +514,27 @@ async function adminQueryProject() {
         if(t.assigned_worker) tags.push(`<span class="tag tag-worker">${t.assigned_worker}</span>`);
         if(t.retry_count>0) tags.push(`<span class="tag tag-retry">重试${t.retry_count}</span>`);
         if(t.status==='HUMAN_PENDING') tags.push('<span class="tag tag-human">人工</span>');
-        h+=`<div class="task-card"><div class="task-id">${t.task_id}</div><div class="task-title">${esc(t.title)}</div><div class="task-tags">${tags.join('')}</div></div>`;
+        let actions = '';
+        if(t.status==='HUMAN_PENDING') {
+          actions = `<div style="margin-top:6px;display:flex;gap:3px"><button class="btn" style="font-size:8px;padding:2px 6px" onclick="humanIntervene('${t.task_id}','retry')">重试</button><button class="btn btn-success" style="font-size:8px;padding:2px 6px" onclick="humanIntervene('${t.task_id}','done')">完成</button></div>`;
+        }
+        h+=`<div class="task-card"><div class="task-id">${t.task_id}</div><div class="task-title">${esc(t.title)}</div><div class="task-tags">${tags.join('')}</div>${actions}</div>`;
       });
       h+='</div>';
     }
     c.innerHTML = h+'</div>';
   } catch(e) { c.innerHTML='<div class="empty-state">查询失败</div>'; }
+}
+
+async function humanIntervene(taskId, action) {
+  const status = action === 'retry' ? 'TODO' : 'DONE';
+  const label = action === 'retry' ? '重试' : '完成';
+  if (!confirm(`确定将任务 ${taskId} 标记为${label}？`)) return;
+  try {
+    await api('/tasks/'+taskId, { method:'PATCH', body:{ status, resolution: 'admin_'+action, comment: '后台管理员操作' } });
+    alert(`✅ 已${label}`);
+    adminQueryProject();
+  } catch(e) { alert('操作失败: ' + e.message); }
 }
 
 // ── Trace ──
@@ -572,28 +610,104 @@ async function deleteSchedule(id) {
   try { await api('/schedules/'+id, { method:'DELETE' }); loadSchedules(); } catch(e) { alert('操作失败: ' + e.message); }
 }
 
+// ── LLM Config ──
+async function loadLlmConfig() {
+  try {
+    const cfg = await api('/config');
+    const apiKeyInput = document.querySelector('#page-llm input[type="password"]');
+    const baseUrlInput = document.querySelector('#page-llm input[placeholder="https://api.openai.com/v1"]');
+    const modelSelect = document.querySelector('#page-llm .form-select');
+    const tokenInput = document.querySelector('#page-llm input[type="number"]');
+    if (cfg.openai_api_key_set) apiKeyInput.value = cfg.openai_api_key_masked;
+    if (cfg.openai_base_url) baseUrlInput.value = cfg.openai_base_url;
+    if (cfg.openai_api_model) {
+      for (const opt of modelSelect.options) {
+        if (opt.value === cfg.openai_api_model) { modelSelect.value = cfg.openai_api_model; break; }
+      }
+    }
+    if (cfg.max_tokens_per_request) tokenInput.value = cfg.max_tokens_per_request;
+  } catch(e) {
+    console.warn('加载 LLM 配置失败:', e.message);
+  }
+}
+
+async function testLlmConnection() {
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = '测试中...';
+  try {
+    const data = await api('/test-llm', { method: 'POST' });
+    if (data.success) {
+      alert(`✅ LLM 连接正常\n\n模型: ${data.model}\n地址: ${data.base_url}\n响应: ${data.response}\n延迟: ${data.latency_ms}ms`);
+    } else {
+      alert(`❌ LLM 连接失败\n\n模型: ${data.model}\n地址: ${data.base_url}\n错误: ${data.error}\n延迟: ${data.latency_ms}ms`);
+    }
+  } catch(e) {
+    alert('❌ 请求失败: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '测试连接';
+  }
+}
+
+function saveLlmConfig() {
+  const apiKey = document.querySelector('#page-llm input[type="password"]').value;
+  const baseUrl = document.querySelector('#page-llm input[placeholder="https://api.openai.com/v1"]').value;
+  const model = document.querySelector('#page-llm .form-select').value;
+  const tokens = document.querySelector('#page-llm input[type="number"]').value;
+  localStorage.setItem('llmCfg', JSON.stringify({ apiKey, baseUrl, model, tokens }));
+  alert('✅ 配置已保存到本地（重启服务后生效）');
+}
+
+// ── Gateway Config ──
+async function loadGatewayConfig() {
+  try {
+    const cfg = await api('/config');
+    const stratSelect = document.querySelector('#page-gateway .form-select');
+    const tempInput = document.querySelector('#page-gateway input[type="number"]');
+    if (cfg.gateway_model) {
+      for (const opt of stratSelect.options) {
+        if (opt.value === cfg.gateway_model) { stratSelect.value = cfg.gateway_model; break; }
+      }
+    }
+  } catch(e) {
+    console.warn('加载 Gateway 配置失败:', e.message);
+  }
+}
+
+function saveGatewayConfig() {
+  const strategy = document.querySelector('#page-gateway .form-select').value;
+  const temp = document.querySelector('#page-gateway input[type="number"]').value;
+  localStorage.setItem('gatewayCfg', JSON.stringify({ strategy, temperature: temp }));
+  alert('✅ Gateway 配置已保存到本地（重启服务后生效）');
+}
+
 // ── Settings ──
 async function loadSettings() {
-  // Scheduler: try to detect from API availability
   try {
-    await api('/schedules');
-    const el = document.getElementById('settingsSchedulerEnabled');
-    el.textContent = '已启用'; el.style.color = 'var(--green)';
-    document.getElementById('settingsSchedulerInterval').textContent = '60s (默认)';
-  } catch {
-    const el = document.getElementById('settingsSchedulerEnabled');
-    el.textContent = '未启用'; el.style.color = 'var(--red)';
-  }
-  // Langfuse: check localStorage config or infer from health
-  try {
-    const lf = JSON.parse(localStorage.getItem('langfuseCfg') || '{}');
-    document.getElementById('settingsLangfuseEnabled').textContent = lf.enabled ? '已启用' : '未启用';
-    document.getElementById('settingsLangfuseEnabled').style.color = lf.enabled ? 'var(--green)' : 'var(--text-2)';
-    document.getElementById('settingsLangfuseHost').textContent = lf.host || '-';
-    document.getElementById('settingsLangfuseKey').textContent = lf.publicKey ? lf.publicKey.slice(0,12)+'...' : '-';
-  } catch {
-    document.getElementById('settingsLangfuseEnabled').textContent = '未配置';
-    document.getElementById('settingsLangfuseEnabled').style.color = 'var(--text-2)';
+    const cfg = await api('/config');
+    const schEl = document.getElementById('settingsSchedulerEnabled');
+    schEl.textContent = cfg.scheduler_enabled ? '已启用' : '未启用';
+    schEl.style.color = cfg.scheduler_enabled ? 'var(--green)' : 'var(--red)';
+    document.getElementById('settingsSchedulerInterval').textContent = cfg.scheduler_poll_interval + 's';
+    const lfEl = document.getElementById('settingsLangfuseEnabled');
+    lfEl.textContent = cfg.langfuse_enabled ? '已启用' : '未启用';
+    lfEl.style.color = cfg.langfuse_enabled ? 'var(--green)' : 'var(--text-2)';
+    document.getElementById('settingsLangfuseHost').textContent = cfg.langfuse_host || '-';
+    document.getElementById('settingsLangfuseKey').textContent = cfg.langfuse_public_key_masked || '-';
+  } catch(e) {
+    console.warn('加载设置失败:', e.message);
+    try {
+      const schedules = await api('/schedules');
+      const el = document.getElementById('settingsSchedulerEnabled');
+      el.textContent = '已启用';
+      el.style.color = 'var(--green)';
+      document.getElementById('settingsSchedulerInterval').textContent = '60s (默认)';
+    } catch {
+      const el = document.getElementById('settingsSchedulerEnabled');
+      el.textContent = '未启用';
+      el.style.color = 'var(--red)';
+    }
   }
 }
 

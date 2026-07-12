@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class ProjectStore:
-    """Project CRUD operations."""
+    """项目 CRUD 操作。"""
 
     def __init__(self, pool: asyncpg.Pool):
         self._pool = pool

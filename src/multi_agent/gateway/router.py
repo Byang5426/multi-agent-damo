@@ -1,4 +1,4 @@
-"""Gateway router: intent classification, injection detection, and routing."""
+"""Gateway 路由器：意图分类、注入检测与请求路由。"""
 
 import logging
 import re
@@ -14,12 +14,12 @@ from multi_agent.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
-# ── Prompt injection detection ──
+# ── Prompt 注入检测正则模式 ──
 
 INJECTION_PATTERNS = [
     r"忘记你的(所有|全部|之前).*(规则|指令|设定)",
     r"忽略(以上|之前|所有).*(规则|指令|设定|限制)",
-    r"你现在是(?!.*\?)",  # "You are now..." without a question mark
+    r"你现在是(?!.*\?)",  # "你现在是..." 但不带问号
     r"ignore\s+(all\s+)?(previous|above|prior)\s+(instructions|rules|prompts)",
     r"you\s+are\s+now\s+(a|an)\s+",
     r"disregard\s+(your|all|previous)\s+",
@@ -40,7 +40,7 @@ class RouteDecision(BaseModel):
 
 
 def detect_injection(text: str) -> bool:
-    """Check if text contains prompt injection patterns."""
+    """检查文本是否包含 Prompt 注入模式。"""
     text_lower = text.lower()
     for pattern in INJECTION_PATTERNS:
         if re.search(pattern, text_lower, re.IGNORECASE):
@@ -48,12 +48,12 @@ def detect_injection(text: str) -> bool:
     return False
 
 
-# Actual prompt content is in multi_agent.defaults.prompts
-# ROUTING_SYSTEM_PROMPT imported as fallback default
+# 实际 Prompt 内容在 multi_agent.defaults.prompts 中
+# ROUTING_SYSTEM_PROMPT 作为回退默认值导入
 
 
 class GatewayRouter:
-    """Classifies user requests and routes them to appropriate handlers."""
+    """对用户请求进行分类，路由到合适的处理链路。"""
 
     def __init__(self):
         self._llm = ChatOpenAI(
@@ -64,11 +64,11 @@ class GatewayRouter:
         )
 
     async def route(self, user_input: str) -> RouteDecision:
-        """Classify a user request and return routing decision.
+        """对用户请求进行分类并返回路由决策。
 
-        Returns a RouteDecision with route='blocked' if injection is detected.
+        如果检测到注入攻击，返回 route='blocked' 的决策。
         """
-        # Check for prompt injection first
+        # 优先检查 Prompt 注入
         if detect_injection(user_input):
             logger.warning("Prompt injection detected: %s", user_input[:100])
             return RouteDecision(

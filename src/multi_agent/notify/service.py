@@ -1,4 +1,4 @@
-"""Notification service: abstract interface and implementations.
+"""通知服务：抽象接口与实现。
 
 设计原则：
 - 抽象接口 NotificationService 支持扩展不同通知渠道

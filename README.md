@@ -9,15 +9,17 @@
 - **智能路由网关** — Gateway 使用轻量模型自动识别用户意图，将请求分类为即时任务、项目型任务或拦截恶意请求
 - **多 Agent 协作** — PM Agent 负责项目拆解与质量审查，Worker Agent（Analyzer / Coder / Tester）负责具体执行
 - **两层编排架构** — 基于 LangGraph 有向图实现 Gateway → PM → Worker → Review 的闭环协作
+- **SSE 流式执行追踪** — 通过 `POST /api/v1/chat/stream` 实时推送每个节点的执行进度，前端可展示实时进度时间线
 - **显式状态机** — 7 种任务状态（TODO / DOING / REVIEW / DONE / FAILED / BLOCKED / HUMAN_PENDING），带合法转换校验
 - **结构化验收标准** — PM 对照 `acceptance_criteria` 逐条检查 Worker 产物，拒绝"凭感觉判断"
 - **失败打回重试** — PM 验收不通过可打回 Worker 重新执行，超限自动升级为人工介入
 - **人工介入恢复** — 提供 `PATCH /tasks/{task_id}` 接口，解决 `HUMAN_PENDING` 任务卡死问题
-- **Prompt 数据库化管理** — 所有 Agent Prompt 存储在 PostgreSQL 中，支持运行时热更新、版本管理和在线编辑，启动时自动种子填充默认值
+- **Prompt 数据库化管理** — 所有 Agent Prompt 存储在 PostgreSQL 中，支持运行时热更新、版本管理和在线编辑，启动时自动种子填充默认值（设计参考 agency-agents 社区）
 - **Prompt 注入防护** — 双层防线：规则匹配（零成本）+ Agent 间结构化消息边界
 - **多租户隔离** — 所有请求携带 `tenant_id`，数据库按租户过滤
 - **完整 Trace 链路** — 每次 Agent 调用记录 span_id、延迟、Token 消耗，支持审计与成本分析
-- **模型分层策略** — 路由用小模型（低成本低延迟），PM/Worker 用强模型（质量优先）
+- **模型分层策略** — 通过 OpenRouter 接入开源模型，路由用小模型（低延迟），PM/Worker 用强模型（质量优先）
+- **LLM 连接测试** — 管理端提供 `POST /api/v1/test-llm` 接口，可在线测试模型连通性
 - **前后端路由分离** — C 端用户页面（`/`）与管理控制台（`/admin`）独立 SPA，基于 Hash 路由
 
 ## 系统架构
@@ -35,7 +37,7 @@
 ┌─────────────────────────────────────────────────────┐
 │  Gateway 路由层  (gateway/router.py)                  │
 │  1. Prompt注入检测（规则匹配）                         │
-│  2. 意图分类（轻量模型 gpt-4o-mini）                   │
+│  2. 意图分类（轻量模型，可配置）                        │
 │     → instant（即时任务）                             │
 │     → project（项目型任务）                           │
 │     → blocked（拦截恶意请求）                          │
@@ -180,7 +182,7 @@ cp .env.example .env
 |--------|---------|--------|------|
 | API Key | `OPENAI_API_KEY` | `""` | **必填**，用于调用 LLM |
 | API Base URL | `OPENAI_BASE_URL` | `""` | 可选，使用代理或自定义端点时填写 |
-| 主力模型 | `OPENAI_API_MODEL` | `gpt-4o` | PM Agent 和 Worker 使用的模型 |
+| 主力模型 | `OPENAI_API_MODEL` | `gpt-4o` | PM Agent 和 Worker 使用的模型（OpenRouter 格式: `provider/model`） |
 | 路由模型 | `GATEWAY_MODEL` | `gpt-4o-mini` | Gateway 路由使用的轻量模型 |
 | PG 主机 | `PG_HOST` | `localhost` | PostgreSQL 主机地址 |
 | PG 端口 | `PG_PORT` | `5432` | PostgreSQL 端口 |
@@ -296,6 +298,26 @@ curl -X POST http://localhost:8000/api/v1/chat \
   -d '{"message": "开发一个用户登录功能：1.先分析需求 2.再写代码 3.最后写测试"}'
 ```
 
+### `POST /api/v1/chat/stream` — SSE 流式入口
+
+通过 Server-Sent Events (SSE) 实时推送任务执行进度，前端可展示实时进度时间线。
+
+**事件类型：** `gateway`（路由决策）、`task_start`（任务开始）、`task_done`（任务完成）、`pm_review`（PM 验收）、`error`（错误）、`done`（全部完成）。
+
+```bash
+curl -N -X POST http://localhost:8000/api/v1/chat/stream \
+  -H "Content-Type: application/json" \
+  -d '{"message": "帮我写一个 Python 快速排序函数"}'
+```
+
+### `POST /api/v1/test-llm` — 测试 LLM 连接
+
+管理端使用，测试当前配置的 LLM 模型是否可用。
+
+```bash
+curl -X POST http://localhost:8000/api/v1/test-llm
+```
+
 ### `GET /api/v1/projects/{project_id}` — 查询项目
 
 获取项目详情和所有子任务状态。
@@ -388,7 +410,7 @@ curl -X PUT http://localhost:8000/api/v1/prompts/pm_decompose \
 
    [gateway_route]
      ├── 检查 Prompt 注入 → 检测到则 blocked
-     └── 调用 gpt-4o-mini 做意图分类
+     └── 调用轻量模型做意图分类
            ├── instant → instant_handler → END
            ├── project → project_init → ...
            ├── blocked → blocked_handler → END
@@ -488,11 +510,16 @@ Worker B 开始编码
 
 ### 模型分层策略
 
-| 角色 | 默认模型 | 选择理由 |
-|------|---------|---------|
-| **Gateway 路由** | `gpt-4o-mini` | 只需稳定输出分类 JSON，追求低延迟低成本 |
-| **PM Agent** | `gpt-4o` | 需要任务拆解能力和指令遵循能力 |
-| **Worker Agent** | `gpt-4o` | 需要专业领域能力（代码/分析/测试） |
+系统通过 [OpenRouter](https://openrouter.ai/) 接入多个开源模型，按职责分层：
+
+| 角色 | 当前模型 | 选择理由 |
+|------|---------|--------|
+| **Gateway 路由** | `meta-llama/llama-3.1-8b-instruct` | 只需稳定输出分类 JSON，追求低延迟低成本（~1.7s） |
+| **PM Agent** | `mistralai/mistral-small-3.2-24b-instruct` | 需要任务拆解能力和指令遵循（~2.1s） |
+| **Worker Agent** | `mistralai/mistral-small-3.2-24b-instruct` | 需要专业领域能力（代码/分析/测试） |
+
+> 模型通过 `.env` 配置：`OPENAI_API_MODEL`（PM/Worker 共用）和 `GATEWAY_MODEL`（路由专用）。
+> OpenRouter 接入时注意：`openai/gpt-4o`、`anthropic/claude` 在某些地区不可用（403）。
 
 ## 开发
 
@@ -589,7 +616,7 @@ Coder 输出不符合验收标准 → PM 打回 → Worker 重新执行（附带
 ## 常见问题
 
 **没有 OpenAI API Key 能用吗？**
-可以通过设置 `OPENAI_BASE_URL` 指向任何兼容 OpenAI API 的端点（如 Ollama、Azure OpenAI 等）。
+可以通过设置 `OPENAI_BASE_URL` 指向任何兼容 OpenAI API 的端点，如 OpenRouter（`https://openrouter.ai/api/v1`）、Ollama、Azure OpenAI 等。使用 OpenRouter 时可接入 mistral、llama、deepseek 等开源模型。
 
 **如何修改最大重试次数？**
 在 `.env` 中设置 `MAX_RETRIES_PER_TASK=5`，或在 PM 拆解任务时为每个任务单独指定。

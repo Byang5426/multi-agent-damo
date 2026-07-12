@@ -1,4 +1,4 @@
-"""Agent Prompt model for runtime prompt management."""
+"""Agent Prompt 模型：用于运行时提示词管理。"""
 
 from datetime import datetime, timezone
 
@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 
 class AgentPrompt(BaseModel):
-    """A stored prompt template for an Agent role."""
+    """存储的 Prompt 模板，对应某个 Agent 角色。"""
 
     prompt_id: str = Field(description="唯一标识，如 pm_decompose, pm_review, analyzer 等")
     agent_name: str = Field(description="所属 Agent: pm, analyzer, coder, tester, gateway")

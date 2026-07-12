@@ -1,4 +1,4 @@
-"""Coder Worker - handles code generation and implementation tasks."""
+"""Coder Worker：负责代码生成、功能实现和脚本开发任务。"""
 
 import json
 import logging
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class CoderWorker(BaseWorker):
     name = "coder"
     prompt_id = "coder"
-    system_prompt = CODER_SYSTEM_PROMPT  # fallback
+    system_prompt = CODER_SYSTEM_PROMPT  # 回退默认 Prompt
 
     def _parse_output(self, raw_content: str) -> WorkerOutput:
         try:

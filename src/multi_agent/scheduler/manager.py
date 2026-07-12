@@ -1,4 +1,4 @@
-"""Schedule manager: asyncio-based polling scheduler.
+"""调度管理器：基于 asyncio 的轮询调度器。
 
 设计原则：
 - 使用 asyncio.Task 轮询 PostgreSQL 中的到期调度任务
@@ -24,8 +24,8 @@ logger = logging.getLogger(__name__)
 def _compute_next_run(cron_expr: str, tz_name: str) -> Optional[datetime]:
     """根据 cron 表达式计算下次执行时间。
 
-    使用简单解析：支持标准 5 字段 cron（分 时 日 月 周）。
-    此处使用 APScheduler 的 CronTrigger 做精确计算。
+    使用 APScheduler 的 CronTrigger 进行精确计算。
+    支持标准 5 字段 cron（分 时 日 月 周）。
     """
     try:
         from apscheduler.triggers.cron import CronTrigger
@@ -47,7 +47,7 @@ def _compute_next_run(cron_expr: str, tz_name: str) -> Optional[datetime]:
         now = datetime.now(timezone.utc)
         next_fire = trigger.get_next_fire_time(None, now)
         if next_fire is not None:
-            # Ensure UTC timezone
+            # 确保时区为 UTC
             if next_fire.tzinfo is None:
                 next_fire = next_fire.replace(tzinfo=timezone.utc)
             else:

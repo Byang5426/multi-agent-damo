@@ -1,4 +1,4 @@
-"""Notification service layer.
+"""通知服务层。
 
 提供任务状态变更的主动通知能力。
 """

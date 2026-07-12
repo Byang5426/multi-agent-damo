@@ -1,4 +1,4 @@
-"""Analyzer Worker - handles analysis and research tasks."""
+"""分析 Worker：负责需求分析、文档研究和方案设计任务。"""
 
 import json
 import logging
@@ -16,11 +16,11 @@ class AnalyzerWorker(BaseWorker):
     system_prompt = ANALYZER_SYSTEM_PROMPT  # fallback
 
     def _parse_output(self, raw_content: str) -> WorkerOutput:
-        """Parse LLM response, with fallback for non-JSON output."""
+        """解析 LLM 响应，非 JSON 输出时回退包装。"""
         try:
-            # Try to extract JSON from the response
+            # 尝试从响应中提取 JSON
             content = raw_content.strip()
-            # Handle markdown code blocks
+            # 处理 Markdown 代码块包裹
             if content.startswith("```"):
                 lines = content.split("\n")
                 content = "\n".join(lines[1:-1]) if lines[-1].strip() == "```" else content

@@ -5,7 +5,7 @@ from multi_agent.models.task import TaskStatus
 
 
 def route_after_gateway(state: WorkflowState) -> str:
-    """Decide which handler to use after gateway routing."""
+    """Gateway 路由后决定使用哪个处理器。"""
     decision = state.get("route_decision", {})
     route = decision.get("route", "instant")
     if route == "blocked":
@@ -19,7 +19,7 @@ def route_after_gateway(state: WorkflowState) -> str:
 
 
 def route_after_worker(state: WorkflowState) -> str:
-    """Decide next step after worker execution."""
+    """Worker 执行后决定下一步操作。"""
     tasks = state["tasks"]
     idx = state["current_task_index"]
     task = tasks[idx]
@@ -33,7 +33,7 @@ def route_after_worker(state: WorkflowState) -> str:
 
 
 def route_after_review(state: WorkflowState) -> str:
-    """Decide next step after PM review."""
+    """PM 审查后决定下一步操作。"""
     tasks = state["tasks"]
     idx = state["current_task_index"]
     task = tasks[idx]
@@ -41,7 +41,7 @@ def route_after_review(state: WorkflowState) -> str:
     if task.get("status") == TaskStatus.DONE.value:
         return "next"
     elif task.get("status") == TaskStatus.TODO.value:
-        # Rejected, check retry limit
+        # 被拒绝，检查是否超过重试上限
         if task.get("retry_count", 0) >= task.get("max_retries", 3):
             return "max_retries"
         return "retry"
@@ -50,7 +50,7 @@ def route_after_review(state: WorkflowState) -> str:
 
 
 def route_after_failure(state: WorkflowState) -> str:
-    """Decide next step after failure handling."""
+    """失败处理后决定下一步操作。"""
     tasks = state["tasks"]
     idx = state["current_task_index"]
     task = tasks[idx]
@@ -64,11 +64,11 @@ def route_after_failure(state: WorkflowState) -> str:
 
 
 def route_next_task(state: WorkflowState) -> str:
-    """Move to next task or finalize."""
+    """推进到下一个任务或执行项目收尾。"""
     tasks = state["tasks"]
     idx = state["current_task_index"]
 
-    # Check for human pending - skip remaining if any task needs human
+    # 检查是否有人工待处理任务——有则跳过剩余任务直接收尾
     for t in tasks:
         if t.get("status") == TaskStatus.HUMAN_PENDING.value:
             return "finalize"

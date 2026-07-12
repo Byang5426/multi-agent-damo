@@ -1,4 +1,4 @@
-"""Models package - exports key types.
+"""数据模型包 - 导出核心类型。
 
 TODO: 以下模型已定义但尚未被业务代码引用，后续迭代中如不需要可移除：
 - Message (models/message.py): Agent 直接使用 LangChain 消息类型

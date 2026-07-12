@@ -1,4 +1,4 @@
-"""Storage layer.
+"""存储层。
 
 使用 PostgreSQL (asyncpg) 作为唯一存储后端。
 """
