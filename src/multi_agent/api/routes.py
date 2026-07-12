@@ -111,10 +111,21 @@ async def chat_stream(request: Request, body: ChatRequest):
         # 等待工作流完成并推送最终结果
         try:
             result = await workflow_task
-            # 清理内部字段
-            result.pop("_store", None)
-            result.pop("_event_queue", None)
-            yield f"data: {json.dumps({'type': 'done', 'result': result}, ensure_ascii=False, default=_json_safe)}\n\n"
+            # 构建与 /chat 一致的 ChatResponse 格式
+            project_data = result.get("project")
+            project_id = project_data.get("project_id") if project_data else None
+            done_payload = {
+                "type": "done",
+                "result": {
+                    "response": result.get("final_response", ""),
+                    "project_id": project_id,
+                    "schedule_id": result.get("schedule_id"),
+                    "tasks": result.get("tasks", []),
+                    "trace_count": len(result.get("trace_logs", [])),
+                    "error": result.get("error"),
+                },
+            }
+            yield f"data: {json.dumps(done_payload, ensure_ascii=False, default=_json_safe)}\n\n"
         except Exception as e:
             logger.error("流式工作流异常: %s", e, exc_info=True)
             yield f"data: {json.dumps({'type': 'error', 'error': str(e)}, ensure_ascii=False)}\n\n"
