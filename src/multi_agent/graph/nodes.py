@@ -85,7 +85,10 @@ async def gateway_route(state: WorkflowState) -> dict[str, Any]:
 async def instant_handler(state: WorkflowState) -> dict[str, Any]:
     """处理即时（单步）任务：调用对应的 Worker 执行。"""
     decision = RouteDecision(**state["route_decision"])
-    worker_name = decision.suggested_worker or "analyzer"
+    # LLM 可能返回字符串 "null" 而非 JSON null，需额外校验
+    worker_name = decision.suggested_worker
+    if not worker_name or worker_name.lower() in ("null", "none", ""):
+        worker_name = "analyzer"
 
     _emit(state, "node_start", {
         "node": "worker",
