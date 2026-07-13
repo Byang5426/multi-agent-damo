@@ -117,9 +117,19 @@ async def instant_handler(state: WorkflowState) -> dict[str, Any]:
     # 同步上报到 Langfuse（fire-and-forget，失败不影响主流程）
     await report_trace_to_langfuse(trace)
 
+    # 即时任务：将产物内容拼入 final_response，而不仅仅是摘要
+    response_parts = []
+    if output.summary:
+        response_parts.append(output.summary)
+    if output.artifacts:
+        for art in output.artifacts:
+            if art.content:
+                response_parts.append(art.content)
+    final_response = "\n\n".join(response_parts) if response_parts else "无响应"
+
     return {
         "worker_output": output.model_dump(),
-        "final_response": output.summary,
+        "final_response": final_response,
         "trace_logs": [trace.model_dump()],
     }
 
